@@ -40,6 +40,14 @@ h1, h2, h3, .brand-mark strong {
     border-bottom: 1px solid rgba(255,255,255,.08);
 }
 
+.navbar-collapse {
+    flex-grow: 0;
+}
+
+.navbar-actions {
+    width: 100%;
+}
+
 .brand-mark {
     display: inline-flex;
     align-items: center;
@@ -285,6 +293,10 @@ h1, h2, h3, .brand-mark strong {
 .modern-table td,
 .modern-table th { padding-top: 1rem; padding-bottom: 1rem; }
 
+.mobile-stack-table tbody tr {
+    transition: transform .2s ease, box-shadow .2s ease;
+}
+
 .table-responsive {
     -webkit-overflow-scrolling: touch;
 }
@@ -360,6 +372,26 @@ h1, h2, h3, .brand-mark strong {
     margin-bottom: .35rem;
 }
 
+.form-hint {
+    color: var(--muted);
+    font-size: .95rem;
+}
+
+.workflow-card {
+    position: sticky;
+    top: 1.5rem;
+}
+
+.workflow-step {
+    padding: .95rem 0;
+    border-bottom: 1px solid rgba(15, 23, 42, .08);
+}
+
+.workflow-step strong {
+    display: block;
+    margin-bottom: .35rem;
+}
+
 .footer-note { color: rgba(16, 23, 42, .6) !important; }
 
 @media (max-width: 991px) {
@@ -384,13 +416,17 @@ h1, h2, h3, .brand-mark strong {
     .brand-mark strong { font-size: 1.02rem; }
     .brand-mark small { font-size: .7rem; }
 
-    .ms-auto.d-flex.flex-wrap.align-items-center.gap-2 {
+    .navbar-collapse {
         width: 100%;
-        justify-content: flex-start;
+        margin-top: .75rem;
     }
 
-    .ms-auto.d-flex.flex-wrap.align-items-center.gap-2 > * {
-        flex: 1 1 auto;
+    .navbar-actions {
+        gap: .65rem !important;
+    }
+
+    .navbar-actions > * {
+        width: 100%;
     }
 
     .user-pill {
@@ -464,12 +500,72 @@ h1, h2, h3, .brand-mark strong {
         flex-wrap: wrap;
     }
 
+    .workflow-card {
+        position: static;
+    }
+
     .modern-table thead th,
     .modern-table td,
     .modern-table th {
         white-space: nowrap;
     }
 
+
+    .mobile-stack-table thead {
+        display: none;
+    }
+
+    .mobile-stack-table,
+    .mobile-stack-table tbody,
+    .mobile-stack-table tr,
+    .mobile-stack-table td {
+        display: block;
+        width: 100%;
+    }
+
+    .mobile-stack-table tbody tr {
+        margin-bottom: .9rem;
+        padding: .7rem .85rem;
+        border: 1px solid rgba(15, 23, 42, .08);
+        border-radius: 16px;
+        background: rgba(255,255,255,.74);
+        box-shadow: 0 10px 24px rgba(15, 23, 42, .06);
+    }
+
+    .mobile-stack-table td {
+        padding: .45rem 0;
+        white-space: normal;
+        border: 0;
+        text-align: left;
+    }
+
+    .mobile-stack-table td::before {
+        content: attr(data-label);
+        display: block;
+        margin-bottom: .15rem;
+        color: var(--muted);
+        font-size: .72rem;
+        font-weight: 700;
+        letter-spacing: .06em;
+        text-transform: uppercase;
+    }
+
+    .mobile-stack-table td:last-child::before {
+        margin-bottom: .35rem;
+    }
+
+    .mobile-stack-table td.text-end {
+        text-align: left !important;
+    }
+
+    .mobile-stack-table .d-inline {
+        display: block !important;
+        width: 100%;
+    }
+
+    .mobile-stack-table .btn {
+        width: 100%;
+    }
     .modern-table td,
     .modern-table th {
         padding-top: .8rem;
@@ -477,7 +573,51 @@ h1, h2, h3, .brand-mark strong {
         font-size: .92rem;
     }
 
+    }
+
+    @media (max-width: 575px) {
+        .navbar .container {
+            padding-left: 12px;
+            padding-right: 12px;
+        }
+
+        .brand-mark {
+            max-width: 100%;
+            width: 100%;
+        }
+
+        .brand-mark small {
+            display: none;
+        }
+
+        .navbar-actions > * {
+            width: 100%;
+        }
+
+        .btn,
+        .form-control,
+        .form-select {
+            min-height: 44px;
+        }
+
+        .glass-alert {
+            border-radius: 14px;
+        }
+
+        .summary-card strong {
+            font-size: 1.45rem;
+        }
+
+        .display-amount {
+            font-size: 1.5rem;
+        }
+
+        .modern-table td,
+        .modern-table th {
+            font-size: .86rem;
+        }
     main.container {
+
         padding-left: 12px !important;
         padding-right: 12px !important;
     }

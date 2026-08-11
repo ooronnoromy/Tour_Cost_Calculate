@@ -6,11 +6,12 @@
         <span class="eyebrow">Budget operations center</span>
         <h1>Tour Budget Dashboard</h1>
         <p>Create, compare, and manage complete travel budgets with a cleaner, faster interface.</p>
+        <p class="form-hint mt-3 mb-0">Open a tour to add expenses step by step. Search by title, destination, or notes when the list grows.</p>
     </div>
     <div class="hero-actions">
         <form class="search-bar" method="get">
-            <input class="form-control" name="q" value="{{ q }}" placeholder="Search tour or destination">
-            <button class="btn btn-dark">Search</button>
+            <input class="form-control" name="q" value="{{ q }}" placeholder="Search title, destination, or notes">
+            <button class="btn btn-dark">Search tours</button>
         </form>
         <div class="hero-links">
             <a class="btn btn-primary" href="{{ url_for('new_tour') }}">+ New Tour</a>

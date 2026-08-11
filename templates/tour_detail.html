@@ -72,7 +72,7 @@
                 <h2 class="h6 mt-4">Expense log</h2>
                 {% if expenses %}
                 <div class="table-responsive">
-                    <table class="table align-middle modern-table mt-3">
+                    <table class="table align-middle modern-table mt-3 mobile-stack-table">
                         <thead>
                             <tr>
                                 <th>Date</th>
@@ -85,10 +85,10 @@
                         <tbody>
                             {% for expense in expenses %}
                             <tr>
-                                <td>{{ expense['expense_date'] }}</td>
-                                <td>{{ expense['category'].title() }}</td>
-                                <td>৳{{ "{:,.2f}".format(expense['amount']) }}</td>
-                                <td class="text-secondary">{{ expense['notes'] or '—' }}</td>
+                                <td data-label="Date">{{ expense['expense_date'] }}</td>
+                                <td data-label="Category">{{ expense['category'].title() }}</td>
+                                <td data-label="Amount">৳{{ "{:,.2f}".format(expense['amount']) }}</td>
+                                <td data-label="Notes" class="text-secondary">{{ expense['notes'] or '—' }}</td>
                                 <td class="text-end">
                                     {% if can_manage_users %}
                                     <form method="post" action="{{ url_for('delete_expense', tour_id=tour['id'], expense_id=expense['id']) }}" onsubmit="return confirm('Delete this expense?')" class="d-inline">
@@ -129,14 +129,15 @@
         <div class="card border-0 tour-surface mb-3">
             <div class="card-body p-4 p-xl-4">
                 <h2 class="h6 mb-3">Add expense</h2>
+                <p class="form-hint mb-3">Enter one item at a time. Examples: Transport, Food, Hotel, Entry Fee, or any label that makes sense for your trip.</p>
                 <form method="post" action="{{ url_for('add_expense', tour_id=tour['id']) }}" id="expenseForm">
                     <div class="mb-3">
                         <label class="form-label">Category *</label>
-                        <input type="text" class="form-control" name="category" required placeholder="Transport, Food, Hotel, Ticket, etc.">
+                        <input type="text" class="form-control" name="category" required placeholder="Transport, Food, Hotel, Ticket, etc." autocomplete="off" spellcheck="false">
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Amount *</label>
-                        <input type="number" min="0" step="0.01" class="form-control" name="amount" id="expenseAmount" required placeholder="1200">
+                        <input type="number" min="0" step="0.01" inputmode="decimal" class="form-control" name="amount" id="expenseAmount" required placeholder="1200">
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Date *</label>
