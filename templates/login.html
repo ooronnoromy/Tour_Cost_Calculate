@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Login · TourCost Pro{% endblock %}
+{% block content %}
+<div class="auth-shell">
+    <div class="auth-copy">
+        <span class="eyebrow">Secure access</span>
+        <h1>Sign in to TourCost Pro</h1>
+        <p>Use the super admin account created on first launch to manage admins, users, and tour budgets.</p>
+        <div class="auth-credentials">
+            <div>
+                <span>Default username</span>
+                <strong>{{ default_username }}</strong>
+            </div>
+            <div>
+                <span>Default password</span>
+                <strong>See README.md</strong>
+            </div>
+        </div>
+    </div>
+    <div class="auth-card card border-0">
+        <div class="card-body p-4 p-xl-5">
+            <h2 class="h4 mb-3">Welcome back</h2>
+            <p class="text-secondary">Enter your credentials to continue.</p>
+            <form method="post" class="mt-4">
+                <div class="mb-3">
+                    <label class="form-label">Username</label>
+                    <input class="form-control form-control-lg" name="username" autocomplete="username" required>
+                </div>
+                <div class="mb-4">
+                    <label class="form-label">Password</label>
+                    <input type="password" class="form-control form-control-lg" name="password" autocomplete="current-password" required>
+                </div>
+                <button class="btn btn-primary btn-lg w-100" type="submit">Login</button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

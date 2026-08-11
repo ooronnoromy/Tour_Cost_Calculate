@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}Dashboard · TourCost Pro{% endblock %}
+{% block content %}
+<section class="hero-panel mb-4 mb-lg-5">
+    <div class="hero-copy">
+        <span class="eyebrow">Budget operations center</span>
+        <h1>Tour Budget Dashboard</h1>
+        <p>Create, compare, and manage complete travel budgets with a cleaner, faster interface.</p>
+    </div>
+    <div class="hero-actions">
+        <form class="search-bar" method="get">
+            <input class="form-control" name="q" value="{{ q }}" placeholder="Search tour or destination">
+            <button class="btn btn-dark">Search</button>
+        </form>
+        <div class="hero-links">
+            <a class="btn btn-primary" href="{{ url_for('new_tour') }}">+ New Tour</a>
+            {% if can_manage_users %}
+            <a class="btn btn-outline-light" href="{{ url_for('manage_users') }}">Manage Users</a>
+            {% endif %}
+        </div>
+    </div>
+</section>
+
+<div class="row g-3 g-xl-4 mb-4 mb-lg-5">
+    <div class="col-md-4"><div class="summary-card accent-one"><span>Saved Tours</span><strong>{{ tours|length }}</strong></div></div>
+    <div class="col-md-4"><div class="summary-card accent-two"><span>Total Travelers</span><strong>{{ total_travelers }}</strong></div></div>
+    <div class="col-md-4"><div class="summary-card accent-three"><span>Combined Budget</span><strong>৳{{ "{:,.2f}".format(total_budget) }}</strong></div></div>
+</div>
+
+{% if can_manage_users %}
+<div class="row g-3 mb-4 mb-lg-5">
+    <div class="col-md-4">
+        <div class="summary-card accent-one"><span>Accounts</span><strong>{{ user_count }}</strong></div>
+    </div>
+</div>
+{% endif %}
+
+{% if tours %}
+<div class="row g-4">
+    {% for tour in tours %}
+        {% set costs = calculate_costs(tour) %}
+        <div class="col-md-6 col-xl-4">
+            <div class="card h-100 border-0 tour-card">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start gap-3">
+                        <div>
+                            <h2 class="h5 mb-1">{{ tour['title'] }}</h2>
+                            <div class="text-secondary">📍 {{ tour['destination'] }}</div>
+                        </div>
+                        <span class="badge rounded-pill text-bg-light px-3 py-2">{{ tour['travelers'] }} people</span>
+                    </div>
+                    <hr>
+                    <div class="small text-secondary">{{ tour['start_date'] }} → {{ tour['end_date'] }}</div>
+                    <div class="display-amount mt-3">৳{{ "{:,.2f}".format(costs['grand_total']) }}</div>
+                    <div class="text-secondary small">৳{{ "{:,.2f}".format(costs['per_person']) }} per person</div>
+                </div>
+                <div class="card-footer border-0 pt-0 pb-3 d-flex gap-2 bg-transparent">
+                    <a class="btn btn-dark btn-sm flex-fill" href="{{ url_for('view_tour', tour_id=tour['id']) }}">View</a>
+                    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('edit_tour', tour_id=tour['id']) }}">Edit</a>
+                </div>
+            </div>
+        </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="empty-state modern-empty">
+    <div class="empty-icon">🧳</div>
+    <h2 class="h5">No tours found</h2>
+    <p class="text-secondary">Create your first tour budget and calculate the full trip cost.</p>
+    <a class="btn btn-primary" href="{{ url_for('new_tour') }}">Create Tour</a>
+</div>
+{% endif %}
+{% endblock %}

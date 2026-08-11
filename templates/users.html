@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}Users · TourCost Pro{% endblock %}
+{% block content %}
+<div class="hero-panel mb-4 mb-lg-5">
+    <div class="hero-copy">
+        <span class="eyebrow">Access control</span>
+        <h1>Manage Users</h1>
+        <p>Create admin and user accounts from the super admin workspace.</p>
+    </div>
+</div>
+
+<div class="row g-4">
+    <div class="col-lg-5">
+        <div class="card border-0 tour-surface">
+            <div class="card-body p-4 p-xl-5">
+                <h2 class="h5 mb-3">Create account</h2>
+                <form method="post">
+                    <div class="mb-3">
+                        <label class="form-label">Full name</label>
+                        <input class="form-control" name="full_name" placeholder="Ayesha Rahman" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Username</label>
+                        <input class="form-control" name="username" placeholder="ayesha.admin" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Password</label>
+                        <input type="password" class="form-control" name="password" minlength="8" required>
+                    </div>
+                    <div class="mb-4">
+                        <label class="form-label">Role</label>
+                        <select class="form-select" name="role" required>
+                            <option value="admin">Admin</option>
+                            <option value="user" selected>User</option>
+                        </select>
+                    </div>
+                    <button class="btn btn-primary w-100" type="submit">Create account</button>
+                </form>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-7">
+        <div class="card border-0 tour-surface h-100">
+            <div class="card-body p-4 p-xl-5">
+                <h2 class="h5 mb-3">Existing accounts</h2>
+                <div class="table-responsive">
+                    <table class="table align-middle modern-table">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Username</th>
+                                <th>Role</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for user in users %}
+                            <tr>
+                                <td>
+                                    <strong>{{ user['full_name'] }}</strong>
+                                    {% if user['role'] == 'super_admin' %}
+                                    <div class="small text-secondary">Platform owner</div>
+                                    {% endif %}
+                                </td>
+                                <td>{{ user['username'] }}</td>
+                                <td><span class="role-badge role-{{ user['role'] }}">{{ user['role'].replace('_', ' ')|title }}</span></td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
