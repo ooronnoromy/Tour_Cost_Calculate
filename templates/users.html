@@ -1,75 +1,158 @@
 {% extends "base.html" %}
 {% block title %}Users · TourCost Pro{% endblock %}
 {% block content %}
-<div class="hero-panel mb-4 mb-lg-5">
-    <div class="hero-copy">
-        <span class="eyebrow">Access control</span>
-        <h1>Manage Users</h1>
-        <p>Create admin and user accounts from the super admin workspace.</p>
+<div class="page-heading">
+    <a class="back-link" href="{{ url_for('dashboard') }}">
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m15 18-6-6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Back to dashboard
+    </a>
+    <div class="page-heading-row">
+        <div>
+            <span class="section-kicker">Access control</span>
+            <h1>Manage users</h1>
+            <p>Create accounts and understand who can access the workspace.</p>
+        </div>
+        <div class="heading-stat"><strong>{{ users|length }}</strong><span>Total accounts</span></div>
     </div>
 </div>
 
-<div class="row g-4">
-    <div class="col-lg-5">
-        <div class="card border-0 tour-surface">
-            <div class="card-body p-4 p-xl-5">
-                <h2 class="h5 mb-3">Create account</h2>
-                <form method="post">
-                    <div class="mb-3">
-                        <label class="form-label">Full name</label>
-                        <input class="form-control" name="full_name" placeholder="Ayesha Rahman" required>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Username</label>
-                        <input class="form-control" name="username" placeholder="ayesha.admin" required>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Password</label>
-                        <input type="password" class="form-control" name="password" minlength="8" required>
-                    </div>
-                    <div class="mb-4">
-                        <label class="form-label">Role</label>
-                        <select class="form-select" name="role" required>
-                            <option value="admin">Admin</option>
-                            <option value="user" selected>User</option>
-                        </select>
-                    </div>
-                    <button class="btn btn-primary w-100" type="submit">Create account</button>
-                </form>
-            </div>
+<div class="user-layout">
+    <section class="form-surface create-user-card" aria-labelledby="createAccountHeading">
+        <div class="surface-heading">
+            <div class="surface-heading-icon"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M15 20v-1.5a3.5 3.5 0 0 0-3.5-3.5h-4A3.5 3.5 0 0 0 4 18.5V20M9.5 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7ZM18 7v6m-3-3h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></div>
+            <div><h2 id="createAccountHeading">Create an account</h2><p>All fields are required.</p></div>
         </div>
-    </div>
-    <div class="col-lg-7">
-        <div class="card border-0 tour-surface h-100">
-            <div class="card-body p-4 p-xl-5">
-                <h2 class="h5 mb-3">Existing accounts</h2>
-                <div class="table-responsive">
-                    <table class="table align-middle modern-table">
-                        <thead>
-                            <tr>
-                                <th>Name</th>
-                                <th>Username</th>
-                                <th>Role</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for user in users %}
-                            <tr>
-                                <td>
-                                    <strong>{{ user['full_name'] }}</strong>
-                                    {% if user['role'] == 'super_admin' %}
-                                    <div class="small text-secondary">Platform owner</div>
-                                    {% endif %}
-                                </td>
-                                <td>{{ user['username'] }}</td>
-                                <td><span class="role-badge role-{{ user['role'] }}">{{ user['role'].replace('_', ' ')|title }}</span></td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
+        <form method="post" class="stacked-form">
+            <div>
+                <label class="form-label" for="fullName">Full name</label>
+                <input class="form-control" id="fullName" name="full_name" maxlength="120" placeholder="e.g. Ayesha Rahman" autocomplete="name" required>
             </div>
+            <div>
+                <label class="form-label" for="newUsername">Username</label>
+                <input class="form-control" id="newUsername" name="username" maxlength="60" placeholder="e.g. ayesha.admin" autocomplete="username" aria-describedby="usernameHint" required>
+                <div class="field-hint" id="usernameHint">Use letters, numbers, dots, or underscores.</div>
+            </div>
+            <div>
+                <label class="form-label" for="newPassword">Password</label>
+                <div class="password-field">
+                    <input type="password" class="form-control" id="newPassword" name="password" minlength="8" autocomplete="new-password" placeholder="At least 8 characters" aria-describedby="passwordHint" required>
+                    <button class="password-toggle" type="button" aria-label="Show password" aria-controls="newPassword" aria-pressed="false" data-password-toggle>
+                        <svg class="eye-open" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="12" r="2.5" stroke="currentColor" stroke-width="1.8"/></svg>
+                        <svg class="eye-closed" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m4 4 16 16M10.6 6.15A10.9 10.9 0 0 1 12 6c6 0 9.5 6 9.5 6a16.6 16.6 0 0 1-2.05 2.72M6.1 6.8C3.75 8.58 2.5 12 2.5 12s3.5 6 9.5 6c1.1 0 2.1-.2 3-.52M9.88 9.88a3 3 0 0 0 4.24 4.24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+                    </button>
+                </div>
+                <div class="field-hint" id="passwordHint">Choose a strong password the user can store safely.</div>
+            </div>
+            <div>
+                <label class="form-label" for="role">Access level</label>
+                <select class="form-select" id="role" name="role" aria-describedby="roleHint" required>
+                    <option value="user" selected>User — manage tours and expenses</option>
+                    <option value="admin">Admin — manage tours and expenses</option>
+                </select>
+                <div class="field-hint" id="roleHint">Only the super admin can manage user accounts or delete records.</div>
+            </div>
+            <button class="btn btn-primary btn-icon w-100" type="submit">
+                <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                Create account
+            </button>
+        </form>
+    </section>
+
+    <section class="table-surface" aria-labelledby="accountsHeading">
+        <div class="surface-heading accounts-heading">
+            <div><span class="section-kicker">Directory</span><h2 id="accountsHeading">Existing accounts</h2><p>Everyone currently able to sign in.</p></div>
+        </div>
+        <div class="table-responsive">
+            <table class="table app-table mobile-stack-table">
+                <thead>
+                    <tr><th scope="col">Person</th><th scope="col">Username</th><th scope="col">Access level</th><th scope="col"><span class="visually-hidden">Actions</span></th></tr>
+                </thead>
+                <tbody>
+                    {% for user in users %}
+                    <tr>
+                        <td data-label="Person">
+                            <div class="person-cell">
+                                <span class="table-avatar">{{ user['full_name'][0]|upper }}</span>
+                                <div><strong>{{ user['full_name'] }}</strong>{% if user['role'] == 'super_admin' %}<small>Workspace owner</small>{% endif %}</div>
+                            </div>
+                        </td>
+                        <td data-label="Username"><span class="username-text">@{{ user['username'] }}</span></td>
+                        <td data-label="Access level"><span class="role-badge role-{{ user['role'] }}">{{ user['role'].replace('_', ' ')|title }}</span></td>
+                        <td data-label="Action" class="text-end">
+                            <button class="icon-button account-edit-button" type="button" aria-label="Edit login details for {{ user['full_name'] }}" data-bs-toggle="modal" data-bs-target="#editAccountModal" data-user-id="{{ user['id'] }}" data-full-name="{{ user['full_name']|e }}" data-username="{{ user['username']|e }}">
+                                <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m14.5 5.5 4 4M4 20l4.2-1 10-10a2.1 2.1 0 0 0-3-3l-10 10L4 20Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <div class="permission-note">
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3 5 6v5c0 4.5 2.8 8.1 7 10 4.2-1.9 7-5.5 7-10V6l-7-3Z" stroke="currentColor" stroke-width="1.8"/><path d="m9.5 12 1.7 1.7 3.5-3.7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+            <span>Super admin access is reserved for the workspace owner.</span>
+        </div>
+    </section>
+</div>
+
+<div class="modal fade" id="editAccountModal" tabindex="-1" aria-labelledby="editAccountTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content account-modal">
+            <div class="modal-header">
+                <div>
+                    <span class="section-kicker">Account security</span>
+                    <h2 class="modal-title" id="editAccountTitle">Edit login details</h2>
+                    <p id="editAccountSubtitle">Update this account's username or password.</p>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="post" id="editAccountForm">
+                <div class="modal-body stacked-form">
+                    <div>
+                        <label class="form-label" for="editUsername">Username</label>
+                        <input class="form-control" id="editUsername" name="username" maxlength="60" autocomplete="username" required>
+                    </div>
+                    <div>
+                        <label class="form-label" for="editPassword">New password <span class="optional-label">Optional</span></label>
+                        <div class="password-field">
+                            <input type="password" class="form-control" id="editPassword" name="password" minlength="8" autocomplete="new-password" placeholder="Leave blank to keep current password" aria-describedby="editPasswordHint">
+                            <button class="password-toggle" type="button" aria-label="Show password" aria-controls="editPassword" aria-pressed="false" data-password-toggle>
+                                <svg class="eye-open" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="12" r="2.5" stroke="currentColor" stroke-width="1.8"/></svg>
+                                <svg class="eye-closed" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m4 4 16 16M10.6 6.15A10.9 10.9 0 0 1 12 6c6 0 9.5 6 9.5 6a16.6 16.6 0 0 1-2.05 2.72M6.1 6.8C3.75 8.58 2.5 12 2.5 12s3.5 6 9.5 6c1.1 0 2.1-.2 3-.52M9.88 9.88a3 3 0 0 0 4.24 4.24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+                            </button>
+                        </div>
+                        <div class="field-hint" id="editPasswordHint">Enter at least 8 characters only when changing the password.</div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary-soft" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save changes</button>
+                </div>
+            </form>
         </div>
     </div>
 </div>
+{% endblock %}
+{% block scripts %}
+<script>
+const editAccountModal = document.getElementById('editAccountModal');
+const editAccountForm = document.getElementById('editAccountForm');
+const editUsername = document.getElementById('editUsername');
+const editPassword = document.getElementById('editPassword');
+const editPasswordToggle = document.querySelector('[aria-controls="editPassword"]');
+const editAccountSubtitle = document.getElementById('editAccountSubtitle');
+
+editAccountModal.addEventListener('show.bs.modal', (event) => {
+    const button = event.relatedTarget;
+    const userId = button.dataset.userId;
+    const fullName = button.dataset.fullName;
+    editAccountForm.action = `{{ url_for('edit_user_account', user_id=0) }}`.replace('/0/edit', `/${userId}/edit`);
+    editUsername.value = button.dataset.username;
+    editPassword.value = '';
+    editPassword.type = 'password';
+    editPasswordToggle.setAttribute('aria-pressed', 'false');
+    editPasswordToggle.setAttribute('aria-label', 'Show password');
+    editAccountSubtitle.textContent = `Update login details for ${fullName}.`;
+});
+</script>
 {% endblock %}

@@ -1,170 +1,166 @@
 {% extends "base.html" %}
 {% block title %}{{ tour['title'] }} · TourCost Pro{% endblock %}
 {% block content %}
-<div class="detail-hero mb-4 mb-lg-5 no-print">
-    <div>
-        <a href="{{ url_for('dashboard') }}" class="text-decoration-none link-light">← Dashboard</a>
-        <h1 class="mt-2 mb-1">{{ tour['title'] }}</h1>
-        <div class="text-white-50">📍 {{ tour['destination'] }} · {{ tour['start_date'] }} → {{ tour['end_date'] }}</div>
+<section class="detail-hero no-print">
+    <div class="detail-hero-main">
+        <a href="{{ url_for('dashboard') }}" class="back-link back-link-light">
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m15 18-6-6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            All tours
+        </a>
+        <span class="detail-status"><i></i> Active budget</span>
+        <h1>{{ tour['title'] }}</h1>
+        <div class="detail-meta">
+            <span><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M19 10c0 5-7 11-7 11S5 15 5 10a7 7 0 1 1 14 0Z" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="10" r="2.3" stroke="currentColor" stroke-width="1.8"/></svg>{{ tour['destination'] }}</span>
+            <span><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="3" stroke="currentColor" stroke-width="1.8"/><path d="M8 3v4m8-4v4M3 10h18" stroke="currentColor" stroke-width="1.8"/></svg>{{ tour['start_date'] }} → {{ tour['end_date'] }}</span>
+            <span><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M16 20v-1.5a3.5 3.5 0 0 0-3.5-3.5h-5A3.5 3.5 0 0 0 4 18.5V20M10 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z" stroke="currentColor" stroke-width="1.8"/></svg>{{ tour['travelers'] }} {% if tour['travelers'] == 1 %}traveler{% else %}travelers{% endif %}</span>
+        </div>
     </div>
-    <div class="d-flex flex-wrap gap-2">
-        <button class="btn btn-outline-light" onclick="window.print()">Print / Save PDF</button>
-        <a class="btn btn-light" href="{{ url_for('edit_tour', tour_id=tour['id']) }}">Edit</a>
+    <div class="detail-hero-actions">
+        <button class="btn btn-ghost-light btn-icon" type="button" onclick="window.print()">
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7 9V3h10v6M7 17H5a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2M7 14h10v7H7v-7Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+            Print
+        </button>
+        <a class="btn btn-light btn-icon" href="{{ url_for('edit_tour', tour_id=tour['id']) }}">
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m14.5 5.5 4 4M4 20l4.2-1 10-10a2.1 2.1 0 0 0-3-3l-10 10L4 20Z" stroke="currentColor" stroke-width="1.8"/></svg>
+            Edit tour
+        </a>
     </div>
-</div>
+</section>
 
-<div class="row g-4">
-    <div class="col-lg-8">
-        <div class="card border-0 tour-surface">
-            <div class="card-body p-4 p-xl-5">
-                <div class="d-flex flex-wrap justify-content-between gap-2 align-items-start mb-3">
-                    <div>
-                        <h2 class="h5 mb-1">Cost Breakdown</h2>
-                        <div class="text-secondary small">{% if costs['expense_count'] == 1 %}1 expense entry logged{% else %}{{ costs['expense_count'] }} expense entries logged{% endif %}</div>
-                    </div>
-                </div>
-                <div class="detail-cost-box">
-                    <div class="detail-cost-line">
-                        <span>Travel ticket / transport</span>
-                        <strong>৳{{ "{:,.2f}".format(costs['transport_total']) }}</strong>
-                    </div>
-                    <div class="detail-cost-line">
-                        <span>Hotel</span>
-                        <strong>৳{{ "{:,.2f}".format(costs['hotel_total']) }}</strong>
-                    </div>
-                    <div class="detail-cost-line">
-                        <span>Food</span>
-                        <strong>৳{{ "{:,.2f}".format(costs['food_total']) }}</strong>
-                    </div>
-                    <div class="detail-cost-line">
-                        <span>Activities</span>
-                        <strong>৳{{ "{:,.2f}".format(costs['activities_total']) }}</strong>
-                    </div>
-                    <div class="detail-cost-line">
-                        <span>Visa</span>
-                        <strong>৳{{ "{:,.2f}".format(costs['visa_total']) }}</strong>
-                    </div>
-                    <div class="detail-cost-line">
-                        <span>Shopping</span>
-                        <strong>৳{{ "{:,.2f}".format(costs['shopping_total']) }}</strong>
-                    </div>
-                    <div class="detail-cost-line">
-                        <span>Other</span>
-                        <strong>৳{{ "{:,.2f}".format(costs['other_total']) }}</strong>
-                    </div>
-                    <div class="detail-cost-line detail-highlight">
-                        <span>Base total</span>
-                        <strong>৳{{ "{:,.2f}".format(costs['base_total']) }}</strong>
-                    </div>
-                    <div class="detail-cost-line detail-highlight">
-                        <span>Grand total</span>
-                        <strong>৳{{ "{:,.2f}".format(costs['grand_total']) }}</strong>
-                    </div>
-                    <div class="detail-cost-line">
-                        <span>Travelers</span>
-                        <strong>{{ tour['travelers'] }}</strong>
-                    </div>
-                    <div class="detail-cost-line detail-highlight">
-                        <span>Per person</span>
-                        <strong>৳{{ "{:,.2f}".format(costs['per_person']) }}</strong>
-                    </div>
-                </div>
-                <h2 class="h6 mt-4">Expense log</h2>
-                {% if expenses %}
-                <div class="table-responsive">
-                    <table class="table align-middle modern-table mt-3 mobile-stack-table">
-                        <thead>
-                            <tr>
-                                <th>Date</th>
-                                <th>Category</th>
-                                <th>Amount</th>
-                                <th>Notes</th>
-                                <th class="text-end">Action</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for expense in expenses %}
-                            <tr>
-                                <td data-label="Date">{{ expense['expense_date'] }}</td>
-                                <td data-label="Category">{{ expense['category'].title() }}</td>
-                                <td data-label="Amount">৳{{ "{:,.2f}".format(expense['amount']) }}</td>
-                                <td data-label="Notes" class="text-secondary">{{ expense['notes'] or '—' }}</td>
-                                <td class="text-end">
-                                    {% if can_manage_users %}
-                                    <form method="post" action="{{ url_for('delete_expense', tour_id=tour['id'], expense_id=expense['id']) }}" onsubmit="return confirm('Delete this expense?')" class="d-inline">
-                                        <button class="btn btn-outline-danger btn-sm">Delete</button>
-                                    </form>
-                                    {% endif %}
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-                {% else %}
-                <div class="empty-state mt-3 p-4">
-                    <div class="empty-icon">+</div>
-                    <h3 class="h6">No expenses yet</h3>
-                    <p class="text-secondary mb-0">Add your first travel or food cost from the panel on the right.</p>
-                </div>
-                {% endif %}
-                {% if tour['notes'] %}
-                <h2 class="h6 mt-4">Notes</h2>
-                <div class="notes-box">{{ tour['notes'] }}</div>
-                {% endif %}
+<section class="detail-summary-grid" aria-label="Tour totals">
+    <article class="detail-summary-card primary">
+        <span>Grand total</span><strong>৳{{ "{:,.2f}".format(costs['grand_total']) }}</strong><small>All recorded expenses</small>
+    </article>
+    <article class="detail-summary-card">
+        <span>Per person</span><strong>৳{{ "{:,.2f}".format(costs['per_person']) }}</strong><small>Split across {{ tour['travelers'] }}</small>
+    </article>
+    <article class="detail-summary-card">
+        <span>Expense entries</span><strong>{{ expenses|length }}</strong><small>Individual records</small>
+    </article>
+</section>
+
+<div class="detail-layout">
+    <div class="detail-main-column">
+        <section class="content-surface" aria-labelledby="breakdownHeading">
+            <div class="surface-heading surface-heading-split">
+                <div><span class="section-kicker">Overview</span><h2 id="breakdownHeading">Cost breakdown</h2><p>See where the tour budget is being spent.</p></div>
+                <span class="total-chip">Total ৳{{ "{:,.2f}".format(costs['grand_total']) }}</span>
             </div>
-        </div>
-    </div>
-    <div class="col-lg-4">
-        <div class="card border-0 tour-surface mb-3">
-            <div class="card-body p-4 p-xl-4">
-                <div class="text-secondary">Grand total</div>
-                <div class="display-amount">৳{{ "{:,.2f}".format(costs['grand_total']) }}</div>
-                <hr>
-                <div class="text-secondary">Per person</div>
-                <div class="h4">৳{{ "{:,.2f}".format(costs['per_person']) }}</div>
-                <div class="small text-secondary">For {{ tour['travelers'] }} traveler(s)</div>
+            <div class="cost-list">
+                <div class="cost-row"><span class="cost-category"><i class="category-icon transport">↗</i><span><strong>Transport</strong><small>Tickets and local travel</small></span></span><strong>৳{{ "{:,.2f}".format(costs['transport_total']) }}</strong></div>
+                <div class="cost-row"><span class="cost-category"><i class="category-icon hotel">⌂</i><span><strong>Hotel</strong><small>Accommodation</small></span></span><strong>৳{{ "{:,.2f}".format(costs['hotel_total']) }}</strong></div>
+                <div class="cost-row"><span class="cost-category"><i class="category-icon food">◌</i><span><strong>Food</strong><small>Meals and refreshments</small></span></span><strong>৳{{ "{:,.2f}".format(costs['food_total']) }}</strong></div>
+                <div class="cost-row"><span class="cost-category"><i class="category-icon activities">☆</i><span><strong>Activities</strong><small>Tours and experiences</small></span></span><strong>৳{{ "{:,.2f}".format(costs['activities_total']) }}</strong></div>
+                <div class="cost-row"><span class="cost-category"><i class="category-icon visa">✓</i><span><strong>Visa</strong><small>Permits and processing</small></span></span><strong>৳{{ "{:,.2f}".format(costs['visa_total']) }}</strong></div>
+                <div class="cost-row"><span class="cost-category"><i class="category-icon shopping">◇</i><span><strong>Shopping</strong><small>Personal purchases</small></span></span><strong>৳{{ "{:,.2f}".format(costs['shopping_total']) }}</strong></div>
+                <div class="cost-row"><span class="cost-category"><i class="category-icon other">•••</i><span><strong>Other</strong><small>Additional costs</small></span></span><strong>৳{{ "{:,.2f}".format(costs['other_total']) }}</strong></div>
             </div>
-        </div>
-        <div class="card border-0 tour-surface mb-3">
-            <div class="card-body p-4 p-xl-4">
-                <h2 class="h6 mb-3">Add expense</h2>
-                <p class="form-hint mb-3">Enter one item at a time. Examples: Transport, Food, Hotel, Entry Fee, or any label that makes sense for your trip.</p>
-                <form method="post" action="{{ url_for('add_expense', tour_id=tour['id']) }}" id="expenseForm">
-                    <div class="mb-3">
-                        <label class="form-label">Category *</label>
-                        <input type="text" class="form-control" name="category" required placeholder="Transport, Food, Hotel, Ticket, etc." autocomplete="off" spellcheck="false">
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Amount *</label>
-                        <input type="number" min="0" step="0.01" inputmode="decimal" class="form-control" name="amount" id="expenseAmount" required placeholder="1200">
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Date *</label>
-                        <input type="date" class="form-control" name="expense_date" value="{{ today }}" required>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Notes</label>
-                        <textarea class="form-control" name="notes" rows="3" placeholder="Train ticket, lunch, hotel deposit..."></textarea>
-                    </div>
-                    <button class="btn btn-primary w-100" type="submit">Add Expense</button>
-                </form>
+        </section>
+
+        <section class="content-surface" aria-labelledby="expenseLogHeading">
+            <div class="surface-heading surface-heading-split">
+                <div><span class="section-kicker">History</span><h2 id="expenseLogHeading">Expense log</h2><p>{% if expenses %}Every cost recorded for this tour.{% else %}Your saved expenses will appear here.{% endif %}</p></div>
+                {% if expenses %}<span class="entry-count">{{ expenses|length }} {% if expenses|length == 1 %}entry{% else %}entries{% endif %}</span>{% endif %}
             </div>
-        </div>
-        <div class="card border-0 tour-surface">
-            <div class="card-body p-4 p-xl-4">
-                <div class="text-secondary small mb-2">If you save the current expense now</div>
-                <div class="estimate-row"><span>New total</span><strong id="previewGrand">৳{{ "{:,.2f}".format(costs['grand_total']) }}</strong></div>
-                <div class="estimate-row"><span>New per person</span><strong id="previewPerPerson">৳{{ "{:,.2f}".format(costs['per_person']) }}</strong></div>
-                <div class="text-secondary small mt-3">This preview updates as you type the amount.</div>
+            {% if expenses %}
+            <div class="table-responsive">
+                <table class="table app-table expense-table mobile-stack-table">
+                    <thead><tr><th scope="col">Date</th><th scope="col">Category</th><th scope="col">Added by</th><th scope="col">Notes</th><th scope="col">Amount</th>{% if can_manage_users %}<th scope="col"><span class="visually-hidden">Actions</span></th>{% endif %}</tr></thead>
+                    <tbody>
+                        {% for expense in expenses %}
+                        <tr>
+                            <td data-label="Date">{{ expense['expense_date'] }}</td>
+                            <td data-label="Category"><span class="expense-category-dot category-{{ expense['category'] }}"></span>{{ expense['category'].title() }}</td>
+                            <td data-label="Added by">
+                                {% if expense['added_by_name'] %}
+                                <span class="expense-author">
+                                    <span class="expense-author-avatar">{{ expense['added_by_name'][0]|upper }}</span>
+                                    <span><strong>{{ expense['added_by_name'] }}</strong><small>@{{ expense['added_by_username'] }}</small></span>
+                                </span>
+                                {% else %}
+                                <span class="expense-author-unknown">Not recorded</span>
+                                {% endif %}
+                            </td>
+                            <td data-label="Notes" class="expense-notes">{{ expense['notes'] or 'No notes' }}</td>
+                            <td data-label="Amount"><strong>৳{{ "{:,.2f}".format(expense['amount']) }}</strong></td>
+                            {% if can_manage_users %}
+                            <td data-label="Action" class="text-end no-print">
+                                <form method="post" action="{{ url_for('delete_expense', tour_id=tour['id'], expense_id=expense['id']) }}" onsubmit="return confirm('Delete this expense? This action cannot be undone.')">
+                                    <button class="icon-button danger" type="submit" aria-label="Delete {{ expense['category'] }} expense of ৳{{ '{:,.2f}'.format(expense['amount']) }}">
+                                        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 7h16m-10 4v5m4-5v5M9 7l1-3h4l1 3m3 0-1 13H7L6 7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                                    </button>
+                                </form>
+                            </td>
+                            {% endif %}
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
             </div>
-        </div>
-        {% if can_manage_users %}
-        <form class="mt-3 no-print" method="post" action="{{ url_for('delete_tour', tour_id=tour['id']) }}" onsubmit="return confirm('Delete this tour?')">
-            <button class="btn btn-outline-danger w-100">Delete Tour</button>
-        </form>
+            {% else %}
+            <div class="empty-state compact-empty">
+                <div class="empty-icon"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 6v12M6 12h12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.5"/></svg></div>
+                <h3>No expenses yet</h3>
+                <p>Use the form beside this section to record your first cost.</p>
+            </div>
+            {% endif %}
+        </section>
+
+        {% if tour['notes'] %}
+        <section class="content-surface notes-section" aria-labelledby="tourNotesHeading">
+            <div class="surface-heading"><span class="section-kicker">Trip information</span><h2 id="tourNotesHeading">Notes</h2></div>
+            <div class="notes-box">{{ tour['notes'] }}</div>
+        </section>
         {% endif %}
     </div>
+
+    <aside class="expense-sidebar no-print">
+        <section class="form-surface add-expense-card" aria-labelledby="addExpenseHeading">
+            <div class="surface-heading">
+                <div class="surface-heading-icon"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></div>
+                <div><span class="section-kicker">New record</span><h2 id="addExpenseHeading">Add expense</h2><p>Record one cost at a time.</p></div>
+            </div>
+            <form method="post" action="{{ url_for('add_expense', tour_id=tour['id']) }}" id="expenseForm" class="stacked-form">
+                <div>
+                    <label class="form-label" for="expenseCategory">Category</label>
+                    <select class="form-select" id="expenseCategory" name="category" required>
+                        <option value="" selected disabled>Select a category</option>
+                        {% for category in expense_categories %}<option value="{{ category }}">{{ category|title }}</option>{% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label class="form-label" for="expenseAmount">Amount (৳)</label>
+                    <div class="money-input"><span>৳</span><input type="number" min="0.01" step="0.01" inputmode="decimal" class="form-control" name="amount" id="expenseAmount" required placeholder="0.00"></div>
+                </div>
+                <div>
+                    <label class="form-label" for="expenseDate">Date</label>
+                    <input type="date" class="form-control" id="expenseDate" name="expense_date" value="{{ today }}" required>
+                </div>
+                <div>
+                    <label class="form-label" for="expenseNotes">Notes <span class="optional-label">Optional</span></label>
+                    <textarea class="form-control" id="expenseNotes" name="notes" rows="3" maxlength="500" placeholder="e.g. Train ticket to Chattogram"></textarea>
+                </div>
+                <div class="live-preview" aria-live="polite">
+                    <span>After adding this expense</span>
+                    <div><small>New total</small><strong id="previewGrand">৳{{ "{:,.2f}".format(costs['grand_total']) }}</strong></div>
+                    <div><small>Per person</small><strong id="previewPerPerson">৳{{ "{:,.2f}".format(costs['per_person']) }}</strong></div>
+                </div>
+                <button class="btn btn-primary btn-icon w-100" type="submit">
+                    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                    Add expense
+                </button>
+            </form>
+        </section>
+
+        {% if can_manage_users %}
+        <section class="danger-zone">
+            <div><strong>Delete this tour</strong><span>Removes the tour and every expense permanently.</span></div>
+            <form method="post" action="{{ url_for('delete_tour', tour_id=tour['id']) }}" onsubmit="return confirm('Delete this entire tour and all of its expenses? This action cannot be undone.')">
+                <button class="btn btn-danger-soft" type="submit">Delete tour</button>
+            </form>
+        </section>
+        {% endif %}
+    </aside>
 </div>
 {% endblock %}
 {% block scripts %}
@@ -174,16 +170,14 @@ const previewGrand = document.getElementById('previewGrand');
 const previewPerPerson = document.getElementById('previewPerPerson');
 const currentTotal = {{ costs['grand_total']|tojson }};
 const travelers = {{ tour['travelers']|tojson }};
-const money = value => '৳' + Number(value || 0).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
+const money = (value) => '৳' + Number(value || 0).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
 function updatePreview() {
-    const extra = Number(amountInput.value || 0);
+    const extra = Math.max(Number(amountInput.value || 0), 0);
     const nextTotal = currentTotal + extra;
     previewGrand.textContent = money(nextTotal);
     previewPerPerson.textContent = money(nextTotal / Math.max(travelers, 1));
 }
-if (amountInput) {
-    amountInput.addEventListener('input', updatePreview);
-    updatePreview();
-}
+amountInput.addEventListener('input', updatePreview);
+updatePreview();
 </script>
 {% endblock %}

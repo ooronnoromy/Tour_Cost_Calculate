@@ -1,74 +1,123 @@
 {% extends "base.html" %}
 {% block title %}Dashboard · TourCost Pro{% endblock %}
 {% block content %}
-<section class="hero-panel mb-4 mb-lg-5">
-    <div class="hero-copy">
-        <span class="eyebrow">Budget operations center</span>
-        <h1>Tour Budget Dashboard</h1>
-        <p>Create, compare, and manage complete travel budgets with a cleaner, faster interface.</p>
-        <p class="form-hint mt-3 mb-0">Open a tour to add expenses step by step. Search by title, destination, or notes when the list grows.</p>
-    </div>
-    <div class="hero-actions">
-        <form class="search-bar" method="get">
-            <input class="form-control" name="q" value="{{ q }}" placeholder="Search title, destination, or notes">
-            <button class="btn btn-dark">Search tours</button>
-        </form>
-        <div class="hero-links">
-            <a class="btn btn-primary" href="{{ url_for('new_tour') }}">+ New Tour</a>
+<section class="page-hero dashboard-hero">
+    <div class="page-hero-copy">
+        <span class="eyebrow">Overview</span>
+        <h1>Your tour budgets,<br><span>all in one place.</span></h1>
+        <p>Plan new trips, track every expense, and understand the cost per traveler at a glance.</p>
+        <div class="hero-actions">
+            <a class="btn btn-primary btn-icon" href="{{ url_for('new_tour') }}">
+                <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                Create a tour
+            </a>
             {% if can_manage_users %}
-            <a class="btn btn-outline-light" href="{{ url_for('manage_users') }}">Manage Users</a>
+            <a class="btn btn-secondary-soft btn-icon" href="{{ url_for('manage_users') }}">
+                <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M16 20v-1.5a3.5 3.5 0 0 0-3.5-3.5h-5A3.5 3.5 0 0 0 4 18.5V20M10 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Zm7-1v6m-3-3h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+                Manage users
+            </a>
             {% endif %}
+        </div>
+    </div>
+    <div class="hero-visual" aria-hidden="true">
+        <div class="hero-orbit hero-orbit-one"></div>
+        <div class="hero-orbit hero-orbit-two"></div>
+        <div class="hero-budget-card">
+            <span>Trip overview</span>
+            <strong>Plan · Track · Share</strong>
+            <div class="mini-progress"><i></i></div>
+            <div class="mini-stats"><span></span><span></span><span></span></div>
         </div>
     </div>
 </section>
 
-<div class="row g-3 g-xl-4 mb-4 mb-lg-5">
-    <div class="col-md-4"><div class="summary-card accent-one"><span>Saved Tours</span><strong>{{ tours|length }}</strong></div></div>
-    <div class="col-md-4"><div class="summary-card accent-two"><span>Total Travelers</span><strong>{{ total_travelers }}</strong></div></div>
-    <div class="col-md-4"><div class="summary-card accent-three"><span>Combined Budget</span><strong>৳{{ "{:,.2f}".format(total_budget) }}</strong></div></div>
-</div>
+<section class="stats-grid" aria-label="Budget summary">
+    <article class="stat-card stat-indigo">
+        <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7 7V5.8A4.8 4.8 0 0 1 11.8 1h.4A4.8 4.8 0 0 1 17 5.8V7M3 12h18M8 12v9m8-9v9M7 7h10a4 4 0 0 1 4 4v6a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4v-6a4 4 0 0 1 4-4Z" stroke="currentColor" stroke-width="1.8"/></svg></div>
+        <div><span>Saved tours</span><strong>{{ tours|length }}</strong><small>Available in this view</small></div>
+    </article>
+    <article class="stat-card stat-teal">
+        <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M16 20v-1.5a3.5 3.5 0 0 0-3.5-3.5h-5A3.5 3.5 0 0 0 4 18.5V20M10 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Zm7-3 1.5 1.5L21 7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <div><span>Total travelers</span><strong>{{ total_travelers }}</strong><small>Across listed tours</small></div>
+    </article>
+    <article class="stat-card stat-amber">
+        <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="3" y="5" width="18" height="15" rx="3" stroke="currentColor" stroke-width="1.8"/><path d="M3 9h18M16 14h2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></div>
+        <div><span>Combined budget</span><strong>৳{{ "{:,.2f}".format(total_budget) }}</strong><small>Current projected spend</small></div>
+    </article>
+    {% if can_manage_users %}
+    <article class="stat-card stat-violet">
+        <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M16 20v-1.5a3.5 3.5 0 0 0-3.5-3.5h-5A3.5 3.5 0 0 0 4 18.5V20M10 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Zm7 0a3 3 0 0 0 0-6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></div>
+        <div><span>User accounts</span><strong>{{ user_count }}</strong><small>People with access</small></div>
+    </article>
+    {% endif %}
+</section>
 
-{% if can_manage_users %}
-<div class="row g-3 mb-4 mb-lg-5">
-    <div class="col-md-4">
-        <div class="summary-card accent-one"><span>Accounts</span><strong>{{ user_count }}</strong></div>
-    </div>
-</div>
-{% endif %}
-
-{% if tours %}
-<div class="row g-4">
-    {% for tour in tours %}
-        {% set costs = calculate_costs(tour) %}
-        <div class="col-md-6 col-xl-4">
-            <div class="card h-100 border-0 tour-card">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-start gap-3">
-                        <div>
-                            <h2 class="h5 mb-1">{{ tour['title'] }}</h2>
-                            <div class="text-secondary">📍 {{ tour['destination'] }}</div>
-                        </div>
-                        <span class="badge rounded-pill text-bg-light px-3 py-2">{{ tour['travelers'] }} people</span>
-                    </div>
-                    <hr>
-                    <div class="small text-secondary">{{ tour['start_date'] }} → {{ tour['end_date'] }}</div>
-                    <div class="display-amount mt-3">৳{{ "{:,.2f}".format(costs['grand_total']) }}</div>
-                    <div class="text-secondary small">৳{{ "{:,.2f}".format(costs['per_person']) }} per person</div>
-                </div>
-                <div class="card-footer border-0 pt-0 pb-3 d-flex gap-2 bg-transparent">
-                    <a class="btn btn-dark btn-sm flex-fill" href="{{ url_for('view_tour', tour_id=tour['id']) }}">View</a>
-                    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('edit_tour', tour_id=tour['id']) }}">Edit</a>
-                </div>
-            </div>
+<section class="content-section">
+    <div class="section-toolbar">
+        <div>
+            <span class="section-kicker">Trip library</span>
+            <h2>{% if q %}Search results{% else %}Your tours{% endif %}</h2>
+            <p>{% if q %}Tours matching “{{ q }}”{% else %}Open a tour to review costs or add a new expense.{% endif %}</p>
         </div>
-    {% endfor %}
-</div>
-{% else %}
-<div class="empty-state modern-empty">
-    <div class="empty-icon">🧳</div>
-    <h2 class="h5">No tours found</h2>
-    <p class="text-secondary">Create your first tour budget and calculate the full trip cost.</p>
-    <a class="btn btn-primary" href="{{ url_for('new_tour') }}">Create Tour</a>
-</div>
-{% endif %}
+        <form class="dashboard-search" method="get" role="search">
+            <label class="visually-hidden" for="tourSearch">Search tours</label>
+            <span class="search-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="6.5" stroke="currentColor" stroke-width="1.8"/><path d="m16 16 4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></span>
+            <input class="form-control" id="tourSearch" name="q" value="{{ q }}" placeholder="Search tours or destinations">
+            {% if q %}<a class="search-clear" href="{{ url_for('dashboard') }}" aria-label="Clear search">×</a>{% endif %}
+            <button class="btn btn-dark" type="submit">Search</button>
+        </form>
+    </div>
+
+    {% if tours %}
+    <div class="tour-grid">
+        {% for tour in tours %}
+            {% set costs = calculate_costs(tour) %}
+            <article class="tour-card">
+                <div class="tour-card-top">
+                    <span class="tour-destination">
+                        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M19 10c0 5-7 11-7 11S5 15 5 10a7 7 0 1 1 14 0Z" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="10" r="2.3" stroke="currentColor" stroke-width="1.8"/></svg>
+                        {{ tour['destination'] }}
+                    </span>
+                    <span class="traveler-chip">{{ tour['travelers'] }} {% if tour['travelers'] == 1 %}traveler{% else %}travelers{% endif %}</span>
+                </div>
+                <h3>{{ tour['title'] }}</h3>
+                <div class="tour-date">
+                    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="3" stroke="currentColor" stroke-width="1.8"/><path d="M8 3v4m8-4v4M3 10h18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+                    <span>{{ tour['start_date'] }} <i>→</i> {{ tour['end_date'] }}</span>
+                </div>
+                <div class="tour-cost">
+                    <span>Total budget</span>
+                    <strong>৳{{ "{:,.2f}".format(costs['grand_total']) }}</strong>
+                    <small>৳{{ "{:,.2f}".format(costs['per_person']) }} per person</small>
+                </div>
+                <div class="tour-card-actions">
+                    <a class="btn btn-dark btn-icon" href="{{ url_for('view_tour', tour_id=tour['id']) }}">
+                        View details
+                        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12h14m-5-5 5 5-5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    </a>
+                    <a class="icon-button" href="{{ url_for('edit_tour', tour_id=tour['id']) }}" aria-label="Edit {{ tour['title'] }}">
+                        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m14.5 5.5 4 4M4 20l4.2-1 10-10a2.1 2.1 0 0 0-3-3l-10 10L4 20Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                    </a>
+                </div>
+            </article>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <div class="empty-icon"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7 7V5.8A4.8 4.8 0 0 1 11.8 1h.4A4.8 4.8 0 0 1 17 5.8V7M3 12h18M8 12v9m8-9v9M7 7h10a4 4 0 0 1 4 4v6a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4v-6a4 4 0 0 1 4-4Z" stroke="currentColor" stroke-width="1.7"/></svg></div>
+        {% if q %}
+        <h2>No matching tours</h2>
+        <p>Try a different title or destination, or clear the search to see every tour.</p>
+        <a class="btn btn-secondary-soft" href="{{ url_for('dashboard') }}">Clear search</a>
+        {% else %}
+        <h2>Plan your first tour</h2>
+        <p>Create a tour, add expenses as you go, and let TourCost Pro calculate the totals.</p>
+        <a class="btn btn-primary btn-icon" href="{{ url_for('new_tour') }}">
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            Create first tour
+        </a>
+        {% endif %}
+    </div>
+    {% endif %}
+</section>
 {% endblock %}

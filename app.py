@@ -99,13 +99,15 @@ def init_db():
                 CREATE TABLE expenses (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     tour_id INTEGER NOT NULL,
+                    created_by_id INTEGER,
                     category TEXT NOT NULL,
                     amount REAL NOT NULL,
                     expense_date TEXT NOT NULL,
                     notes TEXT DEFAULT '',
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL,
-                    FOREIGN KEY(tour_id) REFERENCES tours(id) ON DELETE CASCADE
+                    FOREIGN KEY(tour_id) REFERENCES tours(id) ON DELETE CASCADE,
+                    FOREIGN KEY(created_by_id) REFERENCES users(id) ON DELETE SET NULL
                 )
                 """
             )
@@ -123,32 +125,27 @@ def init_db():
                 CREATE TABLE IF NOT EXISTS expenses (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     tour_id INTEGER NOT NULL,
+                    created_by_id INTEGER,
                     category TEXT NOT NULL,
                     amount REAL NOT NULL,
                     expense_date TEXT NOT NULL,
                     notes TEXT DEFAULT '',
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL,
-                    FOREIGN KEY(tour_id) REFERENCES tours(id) ON DELETE CASCADE
+                    FOREIGN KEY(tour_id) REFERENCES tours(id) ON DELETE CASCADE,
+                    FOREIGN KEY(created_by_id) REFERENCES users(id) ON DELETE SET NULL
                 )
                 """
             )
+        expense_columns = {row[1] for row in conn.execute("PRAGMA table_info(expenses)").fetchall()}
+        if "created_by_id" not in expense_columns:
+            conn.execute("ALTER TABLE expenses ADD COLUMN created_by_id INTEGER")
         now = datetime.now().isoformat(timespec="seconds")
         default_super_admin = conn.execute(
             "SELECT id FROM users WHERE username = ? LIMIT 1",
             (DEFAULT_SUPER_ADMIN_USERNAME,),
         ).fetchone()
-        if default_super_admin:
-            conn.execute(
-                """
-                UPDATE users
-                SET full_name = 'Super Admin', password_hash = ?, role = 'super_admin', updated_at = ?
-                WHERE id = ?
-                """,
-                (generate_password_hash(DEFAULT_SUPER_ADMIN_PASSWORD), now, default_super_admin["id"]),
-            )
-
-        else:
+        if not default_super_admin:
             admin_count = conn.execute("SELECT COUNT(*) FROM users WHERE role = 'super_admin'").fetchone()[0]
             if admin_count == 0:
                 conn.execute(
@@ -256,7 +253,13 @@ def sync_tour_total(conn, tour_id):
 def get_tour_expenses(tour_id):
     with get_db() as conn:
         return conn.execute(
-            "SELECT * FROM expenses WHERE tour_id = ? ORDER BY expense_date DESC, id DESC",
+            """
+            SELECT expenses.*, users.full_name AS added_by_name, users.username AS added_by_username
+            FROM expenses
+            LEFT JOIN users ON users.id = expenses.created_by_id
+            WHERE expenses.tour_id = ?
+            ORDER BY expenses.expense_date DESC, expenses.id DESC
+            """,
             (tour_id,),
         ).fetchall()
 
@@ -392,11 +395,7 @@ def login():
             return redirect(url_for("dashboard"))
         flash("Invalid username or password.", "danger")
 
-    return render_template(
-        "login.html",
-        default_username=DEFAULT_SUPER_ADMIN_USERNAME,
-        default_password=DEFAULT_SUPER_ADMIN_PASSWORD,
-    )
+    return render_template("login.html")
 
 
 @app.route("/logout", methods=["POST"])
@@ -450,6 +449,54 @@ def manage_users():
             "SELECT * FROM users ORDER BY CASE role WHEN 'super_admin' THEN 0 WHEN 'admin' THEN 1 ELSE 2 END, id ASC"
         ).fetchall()
     return render_template("users.html", users=users)
+
+
+@app.route("/users/<int:user_id>/edit", methods=["POST"])
+@login_required
+@super_admin_required
+def edit_user_account(user_id):
+    username = request.form.get("username", "").strip().lower()
+    password = request.form.get("password", "")
+
+    with get_db() as conn:
+        user = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
+        if not user:
+            flash("User account not found.", "danger")
+            return redirect(url_for("manage_users"))
+
+        errors = []
+        if not username:
+            errors.append("Username is required.")
+        elif len(username) > 60:
+            errors.append("Username must be 60 characters or fewer.")
+        duplicate = conn.execute(
+            "SELECT id FROM users WHERE LOWER(username) = ? AND id != ? LIMIT 1",
+            (username, user_id),
+        ).fetchone()
+        if duplicate:
+            errors.append("Username already exists.")
+        if password and len(password) < 8:
+            errors.append("New password must be at least 8 characters.")
+
+        if errors:
+            for error in errors:
+                flash(error, "danger")
+            return redirect(url_for("manage_users"))
+
+        now = datetime.now().isoformat(timespec="seconds")
+        if password:
+            conn.execute(
+                "UPDATE users SET username = ?, password_hash = ?, updated_at = ? WHERE id = ?",
+                (username, generate_password_hash(password), now, user_id),
+            )
+        else:
+            conn.execute(
+                "UPDATE users SET username = ?, updated_at = ? WHERE id = ?",
+                (username, now, user_id),
+            )
+
+    flash(f"Login details updated for {user['full_name']}.", "success")
+    return redirect(url_for("manage_users"))
 
 
 @app.route("/")
@@ -585,10 +632,10 @@ def add_expense(tour_id):
         now = datetime.now().isoformat(timespec="seconds")
         conn.execute(
             """
-            INSERT INTO expenses (tour_id, category, amount, expense_date, notes, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO expenses (tour_id, created_by_id, category, amount, expense_date, notes, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (tour_id, data["category"], data["amount"], data["expense_date"], data["notes"], now, now),
+            (tour_id, g.current_user["id"], data["category"], data["amount"], data["expense_date"], data["notes"], now, now),
         )
         sync_tour_total(conn, tour_id)
 

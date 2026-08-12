@@ -1,73 +1,122 @@
 {% extends "base.html" %}
 {% block title %}{{ mode }} Tour · TourCost Pro{% endblock %}
 {% block content %}
-<div class="form-hero mb-4 mb-lg-5">
-    <div>
-        <span class="eyebrow">Tour setup</span>
-        <h1>{{ mode }} Tour Budget</h1>
-        <p>Create the tour first. You will add travel, food, hotel, and other expenses later from the tour page.</p>
+<div class="page-heading">
+    <a class="back-link" href="{{ url_for('dashboard') }}">
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m15 18-6-6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Back to dashboard
+    </a>
+    <div class="page-heading-row">
+        <div>
+            <span class="section-kicker">Tour setup</span>
+            <h1>{{ mode }} tour budget</h1>
+            <p>{% if mode == 'Create' %}Start with the essential trip details. You can add expenses on the next screen.{% else %}Update the trip information below. Existing expenses will stay unchanged.{% endif %}</p>
+        </div>
+        <span class="step-pill"><strong>Step 1</strong> of 2 · Trip details</span>
     </div>
 </div>
 
-<div class="row g-4 align-items-start">
-    <div class="col-lg-8">
-        <div class="card border-0 tour-surface">
-            <div class="card-body p-4 p-xl-5">
-                <form method="post" id="tourForm">
-                    <div class="row g-3">
-                        <div class="col-md-6">
-                            <label class="form-label">Tour title *</label>
-                            <input class="form-control" name="title" required value="{{ tour['title'] if tour else '' }}" placeholder="Cox's Bazar Weekend">
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">Destination *</label>
-                            <input class="form-control" name="destination" required value="{{ tour['destination'] if tour else '' }}" placeholder="Cox's Bazar, Bangladesh">
-                        </div>
-                        <div class="col-md-4">
-                            <label class="form-label">Start date *</label>
-                            <input type="date" class="form-control" name="start_date" required value="{{ tour['start_date'] if tour else '' }}">
-                        </div>
-                        <div class="col-md-4">
-                            <label class="form-label">End date *</label>
-                            <input type="date" class="form-control" name="end_date" required value="{{ tour['end_date'] if tour else '' }}">
-                        </div>
-                        <div class="col-md-4">
-                            <label class="form-label">Travelers *</label>
-                            <input type="number" min="1" class="form-control" name="travelers" required value="{{ tour['travelers'] if tour else 1 }}">
+<div class="form-layout">
+    <div class="form-surface">
+        <form method="post" id="tourForm">
+            <section class="form-section" aria-labelledby="basicDetailsHeading">
+                <div class="form-section-heading">
+                    <span class="form-section-number">1</span>
+                    <div>
+                        <h2 id="basicDetailsHeading">Basic details</h2>
+                        <p>Give the trip a clear name and destination.</p>
+                    </div>
+                </div>
+                <div class="row g-4">
+                    <div class="col-md-6">
+                        <label class="form-label" for="tourTitle">Tour title <span class="required-mark">*</span></label>
+                        <input class="form-control" id="tourTitle" name="title" required maxlength="120" value="{{ tour['title'] if tour else '' }}" placeholder="e.g. Cox's Bazar Weekend" autofocus>
+                        <div class="field-hint">Use a name that is easy to recognize later.</div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label" for="destination">Destination <span class="required-mark">*</span></label>
+                        <div class="input-with-icon">
+                            <span aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M19 10c0 5-7 11-7 11S5 15 5 10a7 7 0 1 1 14 0Z" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="10" r="2.3" stroke="currentColor" stroke-width="1.8"/></svg></span>
+                            <input class="form-control" id="destination" name="destination" required maxlength="120" value="{{ tour['destination'] if tour else '' }}" placeholder="e.g. Cox's Bazar, Bangladesh">
                         </div>
                     </div>
+                </div>
+            </section>
 
-                    <div class="mt-3">
-                        <label class="form-label">Notes</label>
-                        <textarea class="form-control" rows="3" name="notes" placeholder="Hotel name, transport plan, reminders...">{{ tour['notes'] if tour else '' }}</textarea>
+            <section class="form-section" aria-labelledby="scheduleHeading">
+                <div class="form-section-heading">
+                    <span class="form-section-number">2</span>
+                    <div>
+                        <h2 id="scheduleHeading">Schedule and group</h2>
+                        <p>Set the travel dates and number of people sharing the budget.</p>
                     </div>
+                </div>
+                <div class="row g-4">
+                    <div class="col-md-4">
+                        <label class="form-label" for="startDate">Start date <span class="required-mark">*</span></label>
+                        <input type="date" class="form-control" id="startDate" name="start_date" required value="{{ tour['start_date'] if tour else '' }}">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label" for="endDate">End date <span class="required-mark">*</span></label>
+                        <input type="date" class="form-control" id="endDate" name="end_date" required value="{{ tour['end_date'] if tour else '' }}">
+                        <div class="field-hint">Must be on or after the start date.</div>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label" for="travelers">Travelers <span class="required-mark">*</span></label>
+                        <div class="input-with-icon">
+                            <span aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M16 20v-1.5a3.5 3.5 0 0 0-3.5-3.5h-5A3.5 3.5 0 0 0 4 18.5V20M10 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></span>
+                            <input type="number" min="1" max="10000" class="form-control" id="travelers" name="travelers" required value="{{ tour['travelers'] if tour else 1 }}">
+                        </div>
+                    </div>
+                </div>
+            </section>
 
-                    <div class="d-flex gap-2 mt-4">
-                        <button class="btn btn-primary px-4" type="submit">{{ mode }} Budget</button>
-                        <a class="btn btn-outline-secondary" href="{{ url_for('dashboard') }}">Cancel</a>
+            <section class="form-section" aria-labelledby="notesHeading">
+                <div class="form-section-heading">
+                    <span class="form-section-number">3</span>
+                    <div>
+                        <h2 id="notesHeading">Notes <span class="optional-label">Optional</span></h2>
+                        <p>Keep useful planning information with the tour.</p>
                     </div>
-                </form>
+                </div>
+                <label class="visually-hidden" for="tourNotes">Tour notes</label>
+                <textarea class="form-control" id="tourNotes" rows="4" name="notes" maxlength="1000" placeholder="Hotel, transport plan, meeting point, reminders...">{{ tour['notes'] if tour else '' }}</textarea>
+            </section>
+
+            <div class="form-actions">
+                <a class="btn btn-secondary-soft" href="{{ url_for('dashboard') }}">Cancel</a>
+                <button class="btn btn-primary btn-icon" type="submit">
+                    <span>{{ mode }} tour</span>
+                    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12h14m-5-5 5 5-5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </button>
             </div>
-        </div>
+        </form>
     </div>
-    <div class="col-lg-4">
-        <div class="card border-0 tour-surface h-100 workflow-card">
-            <div class="card-body p-4 p-xl-4">
-                <h2 class="h6 mb-3">How it works</h2>
-                <div class="workflow-step">
-                    <strong>1. Create the tour</strong>
-                    <p class="mb-0 text-secondary small">Add the trip name, place, dates, and traveler count first.</p>
-                </div>
-                <div class="workflow-step">
-                    <strong>2. Add expenses later</strong>
-                    <p class="mb-0 text-secondary small">Open the tour page and enter costs one by one as they happen.</p>
-                </div>
-                <div class="workflow-step mb-0">
-                    <strong>3. Keep it flexible</strong>
-                    <p class="mb-0 text-secondary small">Use free-text categories like Transport, Food, Hotel, or anything else that fits your trip.</p>
-                </div>
-            </div>
+
+    <aside class="workflow-card" aria-labelledby="nextStepsHeading">
+        <div class="workflow-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M12 3a9 9 0 1 0 9 9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M12 7v5l3 2M16 3h5v5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <span class="section-kicker">What happens next?</span>
+        <h2 id="nextStepsHeading">Build your budget in two simple steps</h2>
+        <ol class="workflow-list">
+            <li class="active"><span>1</span><div><strong>Save trip details</strong><small>Name, destination, dates, and travelers.</small></div></li>
+            <li><span>2</span><div><strong>Add expenses</strong><small>Record transport, hotel, food, and other costs.</small></div></li>
+        </ol>
+        <div class="info-callout">
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.8"/><path d="M12 11v5m0-8h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            <p>You can edit these details anytime without losing saved expenses.</p>
         </div>
-    </div>
+    </aside>
 </div>
+{% endblock %}
+{% block scripts %}
+<script>
+const startDate = document.getElementById('startDate');
+const endDate = document.getElementById('endDate');
+function syncEndDate() {
+    endDate.min = startDate.value;
+    if (endDate.value && endDate.value < startDate.value) endDate.value = startDate.value;
+}
+startDate.addEventListener('change', syncEndDate);
+syncEndDate();
+</script>
 {% endblock %}
