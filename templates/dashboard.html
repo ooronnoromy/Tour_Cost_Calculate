@@ -44,6 +44,10 @@
         <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="3" y="5" width="18" height="15" rx="3" stroke="currentColor" stroke-width="1.8"/><path d="M3 9h18M16 14h2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></div>
         <div><span>Combined budget</span><strong>৳{{ "{:,.2f}".format(total_budget) }}</strong><small>Current projected spend</small></div>
     </article>
+    <article class="stat-card stat-coral">
+        <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 7.5A2.5 2.5 0 0 1 6.5 5H19a1 1 0 0 1 1 1v13H6.5A2.5 2.5 0 0 1 4 16.5v-9Zm0 0A2.5 2.5 0 0 0 6.5 10H20m-4 4h4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <div><span>My spending this month</span><strong>&#2547;{{ "{:,.2f}".format(personal_month_total) }}</strong><small><a href="{{ url_for('personal_expenses') }}">Open private ledger</a></small></div>
+    </article>
     {% if can_manage_users %}
     <article class="stat-card stat-violet">
         <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M16 20v-1.5a3.5 3.5 0 0 0-3.5-3.5h-5A3.5 3.5 0 0 0 4 18.5V20M10 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Zm7 0a3 3 0 0 0 0-6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></div>

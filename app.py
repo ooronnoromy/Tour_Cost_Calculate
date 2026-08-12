@@ -1,15 +1,31 @@
 from functools import wraps
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session, g
+from contextlib import contextmanager
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session, g, Response
 import sqlite3
+import csv
+import io
+import math
+import os
+import secrets
+import hmac
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, date
+from urllib.parse import urlsplit
 from werkzeug.security import check_password_hash, generate_password_hash
 
 BASE_DIR = Path(__file__).resolve().parent
 DB_PATH = BASE_DIR / "tour_costs.db"
 
-app = Flask(__name__)
-app.config["SECRET_KEY"] = "change-this-secret-key"
+app = Flask(
+    __name__,
+    template_folder=str(BASE_DIR / "templates"),
+    static_folder=str(BASE_DIR / "static"),
+)
+app.config.update(
+    SECRET_KEY=os.environ.get("TOURCOST_SECRET_KEY", "dev-only-change-this-secret-key"),
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE="Lax",
+)
 
 DEFAULT_SUPER_ADMIN_USERNAME = "superadmin"
 DEFAULT_SUPER_ADMIN_PASSWORD = "SuperAdmin@123"
@@ -24,12 +40,42 @@ EXPENSE_CATEGORIES = (
     "shopping",
     "other",
 )
+PERSONAL_EXPENSE_CATEGORIES = (
+    "Food & dining",
+    "Transport",
+    "Shopping",
+    "Accommodation",
+    "Activities",
+    "Health",
+    "Communication",
+    "Gifts",
+    "Other",
+)
+PAYMENT_METHODS = ("Cash", "Card", "Mobile banking", "Bank transfer", "Other")
+CATEGORY_DETAILS = {
+    "transport": {"label": "Transport", "description": "Tickets and local travel", "icon": "↗"},
+    "hotel": {"label": "Hotel", "description": "Accommodation", "icon": "⌂"},
+    "food": {"label": "Food", "description": "Meals and refreshments", "icon": "◌"},
+    "activities": {"label": "Activities", "description": "Tours and experiences", "icon": "☆"},
+    "visa": {"label": "Visa", "description": "Permits and processing", "icon": "✓"},
+    "shopping": {"label": "Shopping", "description": "Personal purchases", "icon": "◇"},
+    "other": {"label": "Other", "description": "Additional costs", "icon": "•••"},
+}
 
 
+@contextmanager
 def get_db():
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
-    return conn
+    conn.execute("PRAGMA foreign_keys = ON")
+    try:
+        yield conn
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
 
 
 def init_db():
@@ -140,6 +186,30 @@ def init_db():
         expense_columns = {row[1] for row in conn.execute("PRAGMA table_info(expenses)").fetchall()}
         if "created_by_id" not in expense_columns:
             conn.execute("ALTER TABLE expenses ADD COLUMN created_by_id INTEGER")
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS personal_expenses (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                tour_id INTEGER,
+                category TEXT NOT NULL,
+                amount REAL NOT NULL,
+                expense_date TEXT NOT NULL,
+                payment_method TEXT NOT NULL DEFAULT 'Cash',
+                notes TEXT DEFAULT '',
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
+                FOREIGN KEY(tour_id) REFERENCES tours(id) ON DELETE SET NULL
+            )
+            """
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_personal_expenses_user_date ON personal_expenses(user_id, expense_date DESC)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_expenses_tour_date ON expenses(tour_id, expense_date DESC)"
+        )
         now = datetime.now().isoformat(timespec="seconds")
         default_super_admin = conn.execute(
             "SELECT id FROM users WHERE username = ? LIMIT 1",
@@ -165,7 +235,8 @@ def init_db():
 
 def safe_float(value, default=0.0):
     try:
-        return max(float(value or default), 0.0)
+        number = float(value or default)
+        return max(number, 0.0) if math.isfinite(number) else default
     except (TypeError, ValueError):
         return default
 
@@ -175,6 +246,13 @@ def safe_int(value, default=0):
         return max(int(value or default), 0)
     except (TypeError, ValueError):
         return default
+
+
+def valid_iso_date(value):
+    try:
+        return bool(value) and date.fromisoformat(value) is not None
+    except (TypeError, ValueError):
+        return False
 
 
 def form_to_data(form):
@@ -190,9 +268,22 @@ def form_to_data(form):
 
 def expense_form_to_data(form):
     return {
-        "category": " ".join(form.get("category", "").strip().lower().split()),
+        # Keep the user's capitalization while removing accidental extra spaces.
+        "category": " ".join(form.get("category", "").strip().split()),
         "amount": safe_float(form.get("amount")),
         "expense_date": form.get("expense_date", "").strip(),
+        "notes": form.get("notes", "").strip(),
+    }
+
+
+def personal_expense_form_to_data(form):
+    tour_id = safe_int(form.get("tour_id")) or None
+    return {
+        "tour_id": tour_id,
+        "category": " ".join(form.get("category", "").strip().split()),
+        "amount": safe_float(form.get("amount")),
+        "expense_date": form.get("expense_date", "").strip(),
+        "payment_method": form.get("payment_method", "Cash").strip(),
         "notes": form.get("notes", "").strip(),
     }
 
@@ -201,14 +292,22 @@ def validate_tour(data):
     errors = []
     if not data["title"]:
         errors.append("Tour title is required.")
+    elif len(data["title"]) > 120:
+        errors.append("Tour title must be 120 characters or fewer.")
     if not data["destination"]:
         errors.append("Destination is required.")
-    if not data["start_date"] or not data["end_date"]:
+    elif len(data["destination"]) > 120:
+        errors.append("Destination must be 120 characters or fewer.")
+    if not valid_iso_date(data["start_date"]) or not valid_iso_date(data["end_date"]):
         errors.append("Start date and end date are required.")
     elif data["end_date"] < data["start_date"]:
         errors.append("End date cannot be before start date.")
     if data["travelers"] < 1:
         errors.append("At least one traveler is required.")
+    elif data["travelers"] > 10000:
+        errors.append("Travelers cannot exceed 10,000.")
+    if len(data["notes"]) > 1000:
+        errors.append("Tour notes must be 1,000 characters or fewer.")
     return errors
 
 
@@ -218,10 +317,23 @@ def validate_expense(data):
         errors.append("Expense category is required.")
     elif len(data["category"]) > 60:
         errors.append("Expense category must be 60 characters or fewer.")
-    if data["amount"] <= 0:
-        errors.append("Expense amount must be greater than zero.")
-    if not data["expense_date"]:
+    if data["amount"] <= 0 or data["amount"] > 1_000_000_000:
+        errors.append("Expense amount must be between 0.01 and 1,000,000,000.")
+    if not valid_iso_date(data["expense_date"]):
         errors.append("Expense date is required.")
+    if len(data["notes"]) > 500:
+        errors.append("Expense notes must be 500 characters or fewer.")
+    return errors
+
+
+def validate_personal_expense(data, conn):
+    errors = validate_expense(data)
+    if data["payment_method"] not in PAYMENT_METHODS:
+        errors.append("Choose a valid payment method.")
+    if data["tour_id"]:
+        tour = conn.execute("SELECT id FROM tours WHERE id = ?", (data["tour_id"],)).fetchone()
+        if not tour:
+            errors.append("The selected tour no longer exists.")
     return errors
 
 
@@ -276,6 +388,44 @@ def get_user_by_username(username):
         return conn.execute("SELECT * FROM users WHERE username = ?", (username,)).fetchone()
 
 
+def can_manage_tour_expense(expense):
+    if not g.current_user:
+        return False
+    return (
+        g.current_user["role"] in ("super_admin", "admin")
+        or expense["created_by_id"] == g.current_user["id"]
+    )
+
+
+def personal_expense_query(user_id):
+    month = request.args.get("month", "").strip()
+    category = request.args.get("category", "").strip()
+    tour_id = safe_int(request.args.get("tour_id")) or None
+    q = request.args.get("q", "").strip()
+    clauses = ["personal_expenses.user_id = ?"]
+    params = [user_id]
+    if month and len(month) == 7 and valid_iso_date(f"{month}-01"):
+        clauses.append("substr(personal_expenses.expense_date, 1, 7) = ?")
+        params.append(month)
+    else:
+        month = ""
+    if category:
+        clauses.append("personal_expenses.category = ?")
+        params.append(category)
+    if tour_id:
+        clauses.append("personal_expenses.tour_id = ?")
+        params.append(tour_id)
+    if q:
+        clauses.append("(personal_expenses.notes LIKE ? OR personal_expenses.category LIKE ?)")
+        params.extend((f"%{q}%", f"%{q}%"))
+    return " AND ".join(clauses), params, {
+        "month": month,
+        "category": category,
+        "tour_id": tour_id,
+        "q": q,
+    }
+
+
 def login_required(view):
     @wraps(view)
     def wrapped(*args, **kwargs):
@@ -298,6 +448,43 @@ def super_admin_required(view):
     return wrapped
 
 
+def user_manager_required(view):
+    @wraps(view)
+    def wrapped(*args, **kwargs):
+        if not g.current_user or g.current_user["role"] not in ("super_admin", "admin"):
+            flash("Administrator access is required.", "danger")
+            return redirect(url_for("dashboard"))
+        return view(*args, **kwargs)
+
+    return wrapped
+
+
+def get_csrf_token():
+    token = session.get("csrf_token")
+    if not token:
+        token = secrets.token_urlsafe(32)
+        session["csrf_token"] = token
+    return token
+
+
+@app.before_request
+def protect_from_csrf():
+    if request.method == "POST":
+        expected = session.get("csrf_token", "")
+        supplied = request.form.get("csrf_token", "") or request.headers.get("X-CSRF-Token", "")
+        if not expected or not supplied or not hmac.compare_digest(expected, supplied):
+            session.pop("csrf_token", None)
+            get_csrf_token()
+            flash("That form expired. Please try again; your page has been refreshed safely.", "warning")
+            referrer = urlsplit(request.referrer or "")
+            if referrer.netloc == request.host:
+                location = referrer.path or "/"
+                if referrer.query:
+                    location = f"{location}?{referrer.query}"
+                return redirect(location)
+            return redirect(url_for("dashboard" if session.get("user_id") else "login"))
+
+
 @app.before_request
 def load_current_user():
     g.current_user = None
@@ -315,31 +502,48 @@ def inject_user_state():
         "current_user": current_user,
         "is_logged_in": current_user is not None,
         "is_super_admin": bool(current_user and current_user["role"] == "super_admin"),
-        "can_manage_users": bool(current_user and current_user["role"] == "super_admin"),
+        "can_manage_users": bool(current_user and current_user["role"] in ("super_admin", "admin")),
+        "csrf_token": get_csrf_token,
     }
 
 
 def calculate_costs(tour):
     travelers = max(int(tour["travelers"]), 1)
     category_totals = {category: 0.0 for category in EXPENSE_CATEGORIES}
+    recorded_category_totals = {}
     expense_count = 0
     if "id" in tour.keys():
         with get_db() as conn:
             expense_rows = conn.execute(
-                "SELECT category, SUM(amount) AS amount FROM expenses WHERE tour_id = ? GROUP BY category",
+                "SELECT category, amount FROM expenses WHERE tour_id = ? ORDER BY id",
                 (tour["id"],),
             ).fetchall()
         expense_count = len(expense_rows)
         for row in expense_rows:
-            category = " ".join((row["category"] or "").strip().lower().split())
+            category_label = " ".join((row["category"] or "").strip().split())
+            category = category_label.casefold()
             amount = float(row["amount"] or 0)
+            if not category:
+                continue
             if category in category_totals:
                 category_totals[category] += amount
-            else:
-                category_totals["other"] += amount
+            category_details = CATEGORY_DETAILS.get(category)
+            recorded_category = recorded_category_totals.setdefault(
+                category,
+                {
+                    "label": category_label,
+                    "description": category_details["description"] if category_details else "Custom category",
+                    "icon": category_details["icon"] if category_details else "+",
+                    "style": category if category_details else "custom",
+                    "amount": 0.0,
+                },
+            )
+            recorded_category["amount"] += amount
 
-    expense_total = sum(category_totals.values())
-    if expense_total <= 0:
+    if expense_count:
+        category_breakdown = list(recorded_category_totals.values())
+        expense_total = sum(category["amount"] for category in category_breakdown)
+    else:
         category_totals = {
             "transport": float(tour["transport_cost"] or 0),
             "hotel": float(tour["hotel_cost_per_night"] or 0) * int(tour["hotel_nights"] or 0),
@@ -350,6 +554,28 @@ def calculate_costs(tour):
             "other": float(tour["other_cost"] or 0),
         }
         expense_total = sum(category_totals.values())
+        category_breakdown = [
+            {
+                "label": CATEGORY_DETAILS[category]["label"],
+                "description": CATEGORY_DETAILS[category]["description"],
+                "icon": CATEGORY_DETAILS[category]["icon"],
+                "style": category,
+                "amount": amount,
+            }
+            for category, amount in category_totals.items()
+            if amount > 0
+        ]
+
+        # Older tours may only have a saved total without individual category values.
+        stored_total = float(tour["total_cost"] or 0)
+        if not category_breakdown and stored_total > 0:
+            category_breakdown = [{
+                "label": "Other",
+                "description": "Saved tour cost",
+                "icon": CATEGORY_DETAILS["other"]["icon"],
+                "style": "other",
+                "amount": stored_total,
+            }]
 
     if expense_total > 0:
         base_total = expense_total
@@ -370,6 +596,7 @@ def calculate_costs(tour):
         "visa_total": category_totals["visa"],
         "shopping_total": category_totals["shopping"],
         "other_total": category_totals["other"],
+        "category_breakdown": category_breakdown,
         "base_total": base_total,
         "tax_amount": tax_amount,
         "contingency_amount": contingency_amount,
@@ -381,7 +608,10 @@ def calculate_costs(tour):
 
 @app.context_processor
 def inject_helpers():
-    return {"calculate_costs": calculate_costs}
+    return {
+        "calculate_costs": calculate_costs,
+        "can_manage_tour_expense": can_manage_tour_expense,
+    }
 
 
 @app.route("/login", methods=["GET", "POST"])
@@ -397,7 +627,7 @@ def login():
             session["user_id"] = user["id"]
             flash(f"Welcome back, {user['full_name']}.", "success")
             next_url = request.args.get("next")
-            if next_url and next_url.startswith("/"):
+            if next_url and next_url.startswith("/") and not next_url.startswith("//"):
                 return redirect(next_url)
             return redirect(url_for("dashboard"))
         flash("Invalid username or password.", "danger")
@@ -415,8 +645,9 @@ def logout():
 
 @app.route("/users", methods=["GET", "POST"])
 @login_required
-@super_admin_required
+@user_manager_required
 def manage_users():
+    allowed_roles = CREATABLE_ROLES if g.current_user["role"] == "super_admin" else ("user",)
     if request.method == "POST":
         username = request.form.get("username", "").strip().lower()
         full_name = request.form.get("full_name", "").strip()
@@ -430,8 +661,8 @@ def manage_users():
             errors.append("Full name is required.")
         if not password or len(password) < 8:
             errors.append("Password must be at least 8 characters.")
-        if role not in CREATABLE_ROLES:
-            errors.append("Only admin and user roles can be created here.")
+        if role not in allowed_roles:
+            errors.append("You do not have permission to create that account type.")
         if username and get_user_by_username(username):
             errors.append("Username already exists.")
 
@@ -455,12 +686,21 @@ def manage_users():
         users = conn.execute(
             "SELECT * FROM users ORDER BY CASE role WHEN 'super_admin' THEN 0 WHEN 'admin' THEN 1 ELSE 2 END, id ASC"
         ).fetchall()
-    return render_template("users.html", users=users)
+    editable_user_ids = {
+        user["id"] for user in users
+        if g.current_user["role"] == "super_admin" or user["role"] == "user"
+    }
+    return render_template(
+        "users.html",
+        users=users,
+        creatable_roles=allowed_roles,
+        editable_user_ids=editable_user_ids,
+    )
 
 
 @app.route("/users/<int:user_id>/edit", methods=["POST"])
 @login_required
-@super_admin_required
+@user_manager_required
 def edit_user_account(user_id):
     username = request.form.get("username", "").strip().lower()
     password = request.form.get("password", "")
@@ -469,6 +709,9 @@ def edit_user_account(user_id):
         user = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
         if not user:
             flash("User account not found.", "danger")
+            return redirect(url_for("manage_users"))
+        if g.current_user["role"] == "admin" and user["role"] != "user":
+            flash("Administrators can only update standard user accounts.", "danger")
             return redirect(url_for("manage_users"))
 
         errors = []
@@ -523,6 +766,11 @@ def dashboard():
     total_travelers = sum(int(t["travelers"]) for t in tours)
     with get_db() as conn:
         user_count = conn.execute("SELECT COUNT(*) FROM users").fetchone()[0]
+        current_month = date.today().strftime("%Y-%m")
+        personal_month_total = conn.execute(
+            "SELECT COALESCE(SUM(amount), 0) FROM personal_expenses WHERE user_id = ? AND substr(expense_date, 1, 7) = ?",
+            (g.current_user["id"], current_month),
+        ).fetchone()[0]
     return render_template(
         "dashboard.html",
         tours=tours,
@@ -530,6 +778,151 @@ def dashboard():
         total_budget=total_budget,
         total_travelers=total_travelers,
         user_count=user_count,
+        personal_month_total=float(personal_month_total or 0),
+    )
+
+
+@app.route("/personal-expenses", methods=["GET", "POST"])
+@login_required
+def personal_expenses():
+    with get_db() as conn:
+        if request.method == "POST":
+            data = personal_expense_form_to_data(request.form)
+            errors = validate_personal_expense(data, conn)
+            if errors:
+                for error in errors:
+                    flash(error, "danger")
+            else:
+                now = datetime.now().isoformat(timespec="seconds")
+                conn.execute(
+                    """
+                    INSERT INTO personal_expenses (
+                        user_id, tour_id, category, amount, expense_date,
+                        payment_method, notes, created_at, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        g.current_user["id"], data["tour_id"], data["category"],
+                        data["amount"], data["expense_date"], data["payment_method"],
+                        data["notes"], now, now,
+                    ),
+                )
+                flash("Personal expense added to your private ledger.", "success")
+                return redirect(url_for("personal_expenses"))
+
+        where_sql, params, filters = personal_expense_query(g.current_user["id"])
+        expenses = conn.execute(
+            f"""
+            SELECT personal_expenses.*, tours.title AS tour_title
+            FROM personal_expenses
+            LEFT JOIN tours ON tours.id = personal_expenses.tour_id
+            WHERE {where_sql}
+            ORDER BY personal_expenses.expense_date DESC, personal_expenses.id DESC
+            """,
+            params,
+        ).fetchall()
+        tours = conn.execute("SELECT id, title FROM tours ORDER BY title COLLATE NOCASE").fetchall()
+        all_time_total = conn.execute(
+            "SELECT COALESCE(SUM(amount), 0) FROM personal_expenses WHERE user_id = ?",
+            (g.current_user["id"],),
+        ).fetchone()[0]
+        current_month = date.today().strftime("%Y-%m")
+        month_total = conn.execute(
+            "SELECT COALESCE(SUM(amount), 0) FROM personal_expenses WHERE user_id = ? AND substr(expense_date, 1, 7) = ?",
+            (g.current_user["id"], current_month),
+        ).fetchone()[0]
+
+    filtered_total = sum(float(item["amount"]) for item in expenses)
+    category_totals = {}
+    for item in expenses:
+        category_totals[item["category"]] = category_totals.get(item["category"], 0) + float(item["amount"])
+    category_breakdown = sorted(category_totals.items(), key=lambda item: item[1], reverse=True)
+    return render_template(
+        "personal_expenses.html",
+        expenses=expenses,
+        tours=tours,
+        filters=filters,
+        categories=PERSONAL_EXPENSE_CATEGORIES,
+        payment_methods=PAYMENT_METHODS,
+        filtered_total=filtered_total,
+        all_time_total=float(all_time_total or 0),
+        month_total=float(month_total or 0),
+        current_month=current_month,
+        category_breakdown=category_breakdown,
+        today=date.today().isoformat(),
+    )
+
+
+@app.route("/personal-expenses/<int:expense_id>/edit", methods=["POST"])
+@login_required
+def edit_personal_expense(expense_id):
+    with get_db() as conn:
+        expense = conn.execute(
+            "SELECT id FROM personal_expenses WHERE id = ? AND user_id = ?",
+            (expense_id, g.current_user["id"]),
+        ).fetchone()
+        if not expense:
+            flash("Personal expense not found.", "danger")
+            return redirect(url_for("personal_expenses"))
+        data = personal_expense_form_to_data(request.form)
+        errors = validate_personal_expense(data, conn)
+        if errors:
+            for error in errors:
+                flash(error, "danger")
+        else:
+            conn.execute(
+                """
+                UPDATE personal_expenses SET tour_id = ?, category = ?, amount = ?,
+                    expense_date = ?, payment_method = ?, notes = ?, updated_at = ?
+                WHERE id = ? AND user_id = ?
+                """,
+                (
+                    data["tour_id"], data["category"], data["amount"], data["expense_date"],
+                    data["payment_method"], data["notes"], datetime.now().isoformat(timespec="seconds"),
+                    expense_id, g.current_user["id"],
+                ),
+            )
+            flash("Personal expense updated.", "success")
+    return redirect(url_for("personal_expenses"))
+
+
+@app.route("/personal-expenses/<int:expense_id>/delete", methods=["POST"])
+@login_required
+def delete_personal_expense(expense_id):
+    with get_db() as conn:
+        cursor = conn.execute(
+            "DELETE FROM personal_expenses WHERE id = ? AND user_id = ?",
+            (expense_id, g.current_user["id"]),
+        )
+    flash("Personal expense deleted." if cursor.rowcount else "Personal expense not found.", "success" if cursor.rowcount else "danger")
+    return redirect(url_for("personal_expenses"))
+
+
+@app.route("/personal-expenses/export.csv")
+@login_required
+def export_personal_expenses():
+    where_sql, params, _ = personal_expense_query(g.current_user["id"])
+    with get_db() as conn:
+        rows = conn.execute(
+            f"""
+            SELECT personal_expenses.expense_date, personal_expenses.category,
+                   personal_expenses.amount, personal_expenses.payment_method,
+                   COALESCE(tours.title, '') AS tour_title, personal_expenses.notes
+            FROM personal_expenses LEFT JOIN tours ON tours.id = personal_expenses.tour_id
+            WHERE {where_sql}
+            ORDER BY personal_expenses.expense_date DESC, personal_expenses.id DESC
+            """,
+            params,
+        ).fetchall()
+    output = io.StringIO(newline="")
+    writer = csv.writer(output)
+    writer.writerow(("Date", "Category", "Amount (BDT)", "Payment method", "Linked tour", "Notes"))
+    writer.writerows(tuple(row) for row in rows)
+    filename = f"personal-expenses-{date.today().isoformat()}.csv"
+    return Response(
+        "\ufeff" + output.getvalue(),
+        mimetype="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
 
@@ -652,12 +1045,54 @@ def add_expense(tour_id):
 
 @app.route("/tour/<int:tour_id>/expenses/<int:expense_id>/delete", methods=["POST"])
 @login_required
-@super_admin_required
 def delete_expense(tour_id, expense_id):
     with get_db() as conn:
-        conn.execute("DELETE FROM expenses WHERE id = ? AND tour_id = ?", (expense_id, tour_id))
+        expense = conn.execute(
+            "SELECT * FROM expenses WHERE id = ? AND tour_id = ?", (expense_id, tour_id)
+        ).fetchone()
+        if not expense:
+            flash("Expense not found.", "danger")
+            return redirect(url_for("view_tour", tour_id=tour_id))
+        if not can_manage_tour_expense(expense):
+            flash("You can only manage expenses you added.", "danger")
+            return redirect(url_for("view_tour", tour_id=tour_id))
+        conn.execute("DELETE FROM expenses WHERE id = ?", (expense_id,))
         sync_tour_total(conn, tour_id)
     flash("Expense deleted.", "success")
+    return redirect(url_for("view_tour", tour_id=tour_id))
+
+
+@app.route("/tour/<int:tour_id>/expenses/<int:expense_id>/edit", methods=["POST"])
+@login_required
+def edit_expense(tour_id, expense_id):
+    with get_db() as conn:
+        expense = conn.execute(
+            "SELECT * FROM expenses WHERE id = ? AND tour_id = ?", (expense_id, tour_id)
+        ).fetchone()
+        if not expense:
+            flash("Expense not found.", "danger")
+            return redirect(url_for("view_tour", tour_id=tour_id))
+        if not can_manage_tour_expense(expense):
+            flash("You can only manage expenses you added.", "danger")
+            return redirect(url_for("view_tour", tour_id=tour_id))
+        data = expense_form_to_data(request.form)
+        errors = validate_expense(data)
+        if errors:
+            for error in errors:
+                flash(error, "danger")
+        else:
+            conn.execute(
+                """
+                UPDATE expenses SET category = ?, amount = ?, expense_date = ?, notes = ?, updated_at = ?
+                WHERE id = ? AND tour_id = ?
+                """,
+                (
+                    data["category"], data["amount"], data["expense_date"], data["notes"],
+                    datetime.now().isoformat(timespec="seconds"), expense_id, tour_id,
+                ),
+            )
+            sync_tour_total(conn, tour_id)
+            flash("Expense updated.", "success")
     return redirect(url_for("view_tour", tour_id=tour_id))
 
 
@@ -682,4 +1117,9 @@ def api_calculate():
 
 if __name__ == "__main__":
     init_db()
-    app.run(debug=True)
+    # Local development reloads automatically. Set FLASK_DEBUG=0 in production.
+    app.run(
+        host=os.environ.get("HOST", "127.0.0.1"),
+        port=safe_int(os.environ.get("PORT"), 5000) or 5000,
+        debug=os.environ.get("FLASK_DEBUG", "1") == "1",
+    )

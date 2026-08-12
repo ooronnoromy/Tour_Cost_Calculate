@@ -43,6 +43,10 @@
                     <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
                     New tour
                 </a>
+                <a class="nav-link {% if request.endpoint in ('personal_expenses', 'edit_personal_expense', 'delete_personal_expense') %}active{% endif %}" href="{{ url_for('personal_expenses') }}" {% if request.endpoint == 'personal_expenses' %}aria-current="page"{% endif %}>
+                    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 7.5A2.5 2.5 0 0 1 6.5 5H19a1 1 0 0 1 1 1v13H6.5A2.5 2.5 0 0 1 4 16.5v-9Zm0 0A2.5 2.5 0 0 0 6.5 10H20m-4 4h4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    Personal
+                </a>
                 {% if can_manage_users %}
                 <a class="nav-link {% if request.endpoint == 'manage_users' %}active{% endif %}" href="{{ url_for('manage_users') }}" {% if request.endpoint == 'manage_users' %}aria-current="page"{% endif %}>
                     <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M16 20v-1.5a3.5 3.5 0 0 0-3.5-3.5h-5A3.5 3.5 0 0 0 4 18.5V20M10 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Zm7-1v6m-3-3h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
@@ -59,6 +63,7 @@
                     </span>
                 </div>
                 <form method="post" action="{{ url_for('logout') }}">
+                    {% if csrf_token is defined %}<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">{% endif %}
                     <button class="logout-button" type="submit" aria-label="Sign out">
                         <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M10 5H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h4m5-4 4-3-4-3m4 3H9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
                         <span>Sign out</span>

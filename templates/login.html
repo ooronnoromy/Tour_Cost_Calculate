@@ -17,6 +17,7 @@
                 <p>Sign in to continue managing your tours and budgets.</p>
             </div>
             <form method="post" class="auth-form">
+                {% if csrf_token is defined %}<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">{% endif %}
                 <div class="auth-field">
                     <label class="form-label" for="username">Username</label>
                     <input class="form-control form-control-lg" id="username" name="username" autocomplete="username" placeholder="Enter your username" autofocus required>

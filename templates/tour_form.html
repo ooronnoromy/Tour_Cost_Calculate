@@ -19,6 +19,7 @@
 <div class="form-layout">
     <div class="form-surface">
         <form method="post" id="tourForm">
+            {% if csrf_token is defined %}<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">{% endif %}
             <section class="form-section" aria-labelledby="basicDetailsHeading">
                 <div class="form-section-heading">
                     <span class="form-section-number">1</span>
