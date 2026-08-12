@@ -53,21 +53,29 @@
                     </div>
                 </div>
                 <div class="row g-4">
-                    <div class="col-md-4">
+                    <div class="col-md-6 col-lg-3">
                         <label class="form-label" for="startDate">Start date <span class="required-mark">*</span></label>
                         <input type="date" class="form-control" id="startDate" name="start_date" required value="{{ tour['start_date'] if tour else '' }}">
                     </div>
-                    <div class="col-md-4">
+                    <div class="col-md-6 col-lg-3">
                         <label class="form-label" for="endDate">End date <span class="required-mark">*</span></label>
                         <input type="date" class="form-control" id="endDate" name="end_date" required value="{{ tour['end_date'] if tour else '' }}">
                         <div class="field-hint">Must be on or after the start date.</div>
                     </div>
-                    <div class="col-md-4">
+                    <div class="col-md-6 col-lg-3">
                         <label class="form-label" for="travelers">Travelers <span class="required-mark">*</span></label>
                         <div class="input-with-icon">
                             <span aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M16 20v-1.5a3.5 3.5 0 0 0-3.5-3.5h-5A3.5 3.5 0 0 0 4 18.5V20M10 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></span>
                             <input type="number" min="1" max="10000" class="form-control" id="travelers" name="travelers" required value="{{ tour['travelers'] if tour else 1 }}">
                         </div>
+                    </div>
+                    <div class="col-md-6 col-lg-3">
+                        <label class="form-label" for="budgetLimit">Budget target <span class="optional-label">Optional</span></label>
+                        <div class="money-input">
+                            <span>&#2547;</span>
+                            <input type="number" min="0" max="1000000000" step="0.01" inputmode="decimal" class="form-control" id="budgetLimit" name="budget_limit" value="{{ tour['budget_limit'] if tour and tour['budget_limit'] else '' }}" placeholder="0.00">
+                        </div>
+                        <div class="field-hint">Enables budget progress and overspend alerts.</div>
                     </div>
                 </div>
             </section>
@@ -106,6 +114,11 @@
             <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.8"/><path d="M12 11v5m0-8h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
             <p>You can edit these details anytime without losing saved expenses.</p>
         </div>
+        <div class="trip-preview" aria-live="polite">
+            <span>Trip snapshot</span>
+            <div><small>Duration</small><strong id="tripDuration">Choose travel dates</strong></div>
+            <div><small>Target</small><strong id="tripBudget">No target set</strong></div>
+        </div>
     </aside>
 </div>
 {% endblock %}
@@ -113,11 +126,27 @@
 <script>
 const startDate = document.getElementById('startDate');
 const endDate = document.getElementById('endDate');
+const budgetLimit = document.getElementById('budgetLimit');
+const tripDuration = document.getElementById('tripDuration');
+const tripBudget = document.getElementById('tripBudget');
 function syncEndDate() {
     endDate.min = startDate.value;
     if (endDate.value && endDate.value < startDate.value) endDate.value = startDate.value;
 }
-startDate.addEventListener('change', syncEndDate);
+function updateTripPreview() {
+    if (startDate.value && endDate.value) {
+        const days = Math.round((new Date(endDate.value + 'T00:00:00') - new Date(startDate.value + 'T00:00:00')) / 86400000) + 1;
+        tripDuration.textContent = `${days} ${days === 1 ? 'day' : 'days'}`;
+    } else {
+        tripDuration.textContent = 'Choose travel dates';
+    }
+    const target = Number(budgetLimit.value || 0);
+    tripBudget.textContent = target > 0 ? `৳${target.toLocaleString(undefined, {maximumFractionDigits: 2})}` : 'No target set';
+}
+startDate.addEventListener('change', () => { syncEndDate(); updateTripPreview(); });
+endDate.addEventListener('change', updateTripPreview);
+budgetLimit.addEventListener('input', updateTripPreview);
 syncEndDate();
+updateTripPreview();
 </script>
 {% endblock %}

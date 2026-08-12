@@ -89,6 +89,7 @@ def init_db():
                 start_date TEXT NOT NULL,
                 end_date TEXT NOT NULL,
                 travelers INTEGER NOT NULL,
+                budget_limit REAL NOT NULL DEFAULT 0,
                 notes TEXT DEFAULT '',
                 total_cost REAL NOT NULL DEFAULT 0,
                 created_at TEXT NOT NULL,
@@ -121,6 +122,8 @@ def init_db():
             conn.execute("ALTER TABLE tours ADD COLUMN tax_percent REAL NOT NULL DEFAULT 0")
         if "contingency_percent" not in tour_columns:
             conn.execute("ALTER TABLE tours ADD COLUMN contingency_percent REAL NOT NULL DEFAULT 0")
+        if "budget_limit" not in tour_columns:
+            conn.execute("ALTER TABLE tours ADD COLUMN budget_limit REAL NOT NULL DEFAULT 0")
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS users (
@@ -262,6 +265,7 @@ def form_to_data(form):
         "start_date": form.get("start_date", "").strip(),
         "end_date": form.get("end_date", "").strip(),
         "travelers": max(safe_int(form.get("travelers"), 1), 1),
+        "budget_limit": safe_float(form.get("budget_limit")),
         "notes": form.get("notes", "").strip(),
     }
 
@@ -306,6 +310,8 @@ def validate_tour(data):
         errors.append("At least one traveler is required.")
     elif data["travelers"] > 10000:
         errors.append("Travelers cannot exceed 10,000.")
+    if data["budget_limit"] > 1_000_000_000:
+        errors.append("Budget target cannot exceed 1,000,000,000.")
     if len(data["notes"]) > 1000:
         errors.append("Tour notes must be 1,000 characters or fewer.")
     return errors
@@ -606,10 +612,43 @@ def calculate_costs(tour):
     }
 
 
+def get_tour_insights(tour, grand_total=None):
+    """Return presentation-friendly schedule and budget health information."""
+    today = date.today()
+    start = date.fromisoformat(tour["start_date"])
+    end = date.fromisoformat(tour["end_date"])
+    if today < start:
+        status, status_label = "upcoming", "Upcoming"
+        timing_label = f"Starts in {(start - today).days} day{'s' if (start - today).days != 1 else ''}"
+    elif today > end:
+        status, status_label = "completed", "Completed"
+        timing_label = f"Ended {(today - end).days} day{'s' if (today - end).days != 1 else ''} ago"
+    else:
+        status, status_label = "active", "In progress"
+        timing_label = "Happening now"
+
+    total = float(grand_total if grand_total is not None else calculate_costs(tour)["grand_total"])
+    budget_limit = float(tour["budget_limit"] or 0) if "budget_limit" in tour.keys() else 0.0
+    budget_remaining = budget_limit - total if budget_limit > 0 else None
+    budget_percent = (total / budget_limit * 100) if budget_limit > 0 else 0.0
+    return {
+        "status": status,
+        "status_label": status_label,
+        "timing_label": timing_label,
+        "duration_days": (end - start).days + 1,
+        "budget_limit": budget_limit,
+        "budget_remaining": budget_remaining,
+        "budget_percent": budget_percent,
+        "budget_progress": min(budget_percent, 100),
+        "over_budget": bool(budget_remaining is not None and budget_remaining < 0),
+    }
+
+
 @app.context_processor
 def inject_helpers():
     return {
         "calculate_costs": calculate_costs,
+        "get_tour_insights": get_tour_insights,
         "can_manage_tour_expense": can_manage_tour_expense,
     }
 
@@ -753,6 +792,12 @@ def edit_user_account(user_id):
 @login_required
 def dashboard():
     q = request.args.get("q", "").strip()
+    status_filter = request.args.get("status", "all").strip().lower()
+    sort = request.args.get("sort", "newest").strip().lower()
+    if status_filter not in ("all", "upcoming", "active", "completed"):
+        status_filter = "all"
+    if sort not in ("newest", "soonest", "cost_high", "cost_low", "title"):
+        sort = "newest"
     with get_db() as conn:
         if q:
             tours = conn.execute(
@@ -762,8 +807,28 @@ def dashboard():
         else:
             tours = conn.execute("SELECT * FROM tours ORDER BY id DESC").fetchall()
 
-    total_budget = sum(calculate_costs(t)["grand_total"] for t in tours)
-    total_travelers = sum(int(t["travelers"]) for t in tours)
+    tour_items = []
+    for tour in tours:
+        costs = calculate_costs(tour)
+        insights = get_tour_insights(tour, costs["grand_total"])
+        if status_filter != "all" and insights["status"] != status_filter:
+            continue
+        tour_items.append({"tour": tour, "costs": costs, "insights": insights})
+
+    if sort == "soonest":
+        tour_items.sort(key=lambda item: (item["tour"]["start_date"], item["tour"]["id"]))
+    elif sort == "cost_high":
+        tour_items.sort(key=lambda item: item["costs"]["grand_total"], reverse=True)
+    elif sort == "cost_low":
+        tour_items.sort(key=lambda item: item["costs"]["grand_total"])
+    elif sort == "title":
+        tour_items.sort(key=lambda item: item["tour"]["title"].casefold())
+    else:
+        tour_items.sort(key=lambda item: item["tour"]["id"], reverse=True)
+
+    visible_tours = [item["tour"] for item in tour_items]
+    total_budget = sum(item["costs"]["grand_total"] for item in tour_items)
+    total_travelers = sum(int(item["tour"]["travelers"]) for item in tour_items)
     with get_db() as conn:
         user_count = conn.execute("SELECT COUNT(*) FROM users").fetchone()[0]
         current_month = date.today().strftime("%Y-%m")
@@ -773,8 +838,11 @@ def dashboard():
         ).fetchone()[0]
     return render_template(
         "dashboard.html",
-        tours=tours,
+        tours=visible_tours,
+        tour_items=tour_items,
         q=q,
+        status_filter=status_filter,
+        sort=sort,
         total_budget=total_budget,
         total_travelers=total_travelers,
         user_count=user_count,
@@ -943,11 +1011,11 @@ def new_tour():
             cursor = conn.execute(
                 """
                 INSERT INTO tours (
-                    title, destination, start_date, end_date, travelers, notes, total_cost, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    title, destination, start_date, end_date, travelers, budget_limit, notes, total_cost, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
-                    data["title"], data["destination"], data["start_date"], data["end_date"], data["travelers"], data["notes"], 0, now, now,
+                    data["title"], data["destination"], data["start_date"], data["end_date"], data["travelers"], data["budget_limit"], data["notes"], 0, now, now,
                 ),
             )
             tour_id = cursor.lastrowid
@@ -966,14 +1034,38 @@ def view_tour(tour_id):
         flash("Tour not found.", "danger")
         return redirect(url_for("dashboard"))
     costs = calculate_costs(tour)
+    insights = get_tour_insights(tour, costs["grand_total"])
     expenses = get_tour_expenses(tour_id)
     return render_template(
         "tour_detail.html",
         tour=tour,
         costs=costs,
+        insights=insights,
         expenses=expenses,
         expense_categories=EXPENSE_CATEGORIES,
         today=datetime.now().date().isoformat(),
+    )
+
+
+@app.route("/tour/<int:tour_id>/print")
+@login_required
+def print_tour(tour_id):
+    with get_db() as conn:
+        tour = conn.execute("SELECT * FROM tours WHERE id = ?", (tour_id,)).fetchone()
+    if not tour:
+        flash("Tour not found.", "danger")
+        return redirect(url_for("dashboard"))
+
+    costs = calculate_costs(tour)
+    insights = get_tour_insights(tour, costs["grand_total"])
+    expenses = get_tour_expenses(tour_id)
+    return render_template(
+        "print_tour.html",
+        tour=tour,
+        costs=costs,
+        insights=insights,
+        expenses=expenses,
+        generated_at=datetime.now(),
     )
 
 
@@ -1000,11 +1092,11 @@ def edit_tour(tour_id):
             conn.execute(
                 """
                 UPDATE tours SET
-                    title=?, destination=?, start_date=?, end_date=?, travelers=?, notes=?, updated_at=?
+                    title=?, destination=?, start_date=?, end_date=?, travelers=?, budget_limit=?, notes=?, updated_at=?
                 WHERE id=?
                 """,
                 (
-                    data["title"], data["destination"], data["start_date"], data["end_date"], data["travelers"], data["notes"], now, tour_id,
+                    data["title"], data["destination"], data["start_date"], data["end_date"], data["travelers"], data["budget_limit"], data["notes"], now, tour_id,
                 ),
             )
         flash("Tour budget updated successfully.", "success")
@@ -1094,6 +1186,39 @@ def edit_expense(tour_id, expense_id):
             sync_tour_total(conn, tour_id)
             flash("Expense updated.", "success")
     return redirect(url_for("view_tour", tour_id=tour_id))
+
+
+@app.route("/tour/<int:tour_id>/expenses/export.csv")
+@login_required
+def export_tour_expenses(tour_id):
+    with get_db() as conn:
+        tour = conn.execute("SELECT title FROM tours WHERE id = ?", (tour_id,)).fetchone()
+        if not tour:
+            flash("Tour not found.", "danger")
+            return redirect(url_for("dashboard"))
+        rows = conn.execute(
+            """
+            SELECT expenses.expense_date, expenses.category, expenses.amount,
+                   COALESCE(users.full_name, '') AS added_by, expenses.notes
+            FROM expenses
+            LEFT JOIN users ON users.id = expenses.created_by_id
+            WHERE expenses.tour_id = ?
+            ORDER BY expenses.expense_date DESC, expenses.id DESC
+            """,
+            (tour_id,),
+        ).fetchall()
+
+    output = io.StringIO(newline="")
+    writer = csv.writer(output)
+    writer.writerow(("Date", "Category", "Amount (BDT)", "Added by", "Notes"))
+    writer.writerows(tuple(row) for row in rows)
+    safe_title = "".join(char if char.isalnum() else "-" for char in tour["title"]).strip("-").lower()
+    filename = f"{safe_title or 'tour'}-expenses-{date.today().isoformat()}.csv"
+    return Response(
+        "\ufeff" + output.getvalue(),
+        mimetype="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @app.route("/tour/<int:tour_id>/delete", methods=["POST"])

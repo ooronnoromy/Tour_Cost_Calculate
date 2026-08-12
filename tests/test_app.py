@@ -1,6 +1,7 @@
 import tempfile
 import unittest
 from pathlib import Path
+from datetime import date, timedelta
 
 from werkzeug.security import generate_password_hash
 
@@ -159,6 +160,59 @@ class TourCostIntegrationTests(unittest.TestCase):
         self.assertIn(b"do not have permission", response.data)
         with tourcost.get_db() as conn:
             self.assertIsNone(conn.execute("SELECT id FROM users WHERE username = 'forbidden_admin'").fetchone())
+
+    def test_budget_target_dashboard_filter_and_tour_export(self):
+        start_date = (date.today() + timedelta(days=1)).isoformat()
+        end_date = (date.today() + timedelta(days=3)).isoformat()
+        response = self.post(
+            "/tour/new",
+            data={
+                "title": "Budgeted escape", "destination": "Bandarban",
+                "start_date": start_date, "end_date": end_date,
+                "travelers": "4", "budget_limit": "1000", "notes": "",
+            },
+        )
+        tour_id = int(response.headers["Location"].rstrip("/").split("/")[-1])
+        self.post(
+            f"/tour/{tour_id}/expenses/add",
+            data={"category": "Transport", "amount": "750", "expense_date": start_date, "notes": "Bus"},
+        )
+
+        detail = self.client.get(f"/tour/{tour_id}")
+        self.assertIn(b"Budget remaining", detail.data)
+        self.assertIn(b"250.00", detail.data)
+        dashboard = self.client.get("/?status=upcoming&sort=cost_high")
+        self.assertIn(b"Budgeted escape", dashboard.data)
+        self.assertIn(b"75%", dashboard.data)
+
+        export = self.client.get(f"/tour/{tour_id}/expenses/export.csv")
+        self.assertEqual(export.status_code, 200)
+        self.assertIn(b"Transport", export.data)
+        self.assertIn(b"750.0", export.data)
+
+    def test_selected_tour_has_complete_a4_print_report(self):
+        tour_id = self.create_tour()
+        self.post(
+            f"/tour/{tour_id}/expenses/add",
+            data={
+                "category": "Hotel", "amount": "2400",
+                "expense_date": "2026-09-02", "notes": "Two rooms",
+            },
+        )
+
+        detail = self.client.get(f"/tour/{tour_id}")
+        self.assertIn(f'/tour/{tour_id}/print'.encode(), detail.data)
+        report = self.client.get(f"/tour/{tour_id}/print")
+        self.assertEqual(report.status_code, 200)
+        self.assertIn(b"Complete tour record", report.data)
+        self.assertIn(b"Summer break", report.data)
+        self.assertIn(b"Sylhet", report.data)
+        self.assertIn(b"Two rooms", report.data)
+        self.assertIn(b"2,400.00", report.data)
+        print_css = self.client.get("/static/print.css")
+        self.assertEqual(print_css.status_code, 200)
+        self.assertIn(b"size: A4 portrait", print_css.data)
+        print_css.close()
 
 
 if __name__ == "__main__":

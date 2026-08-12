@@ -7,9 +7,13 @@ An advanced Python web application for calculating and managing tour budgets.
 - Role-based login with super admin, admin, and user access
 - Super admin can create administrators and users; administrators can manage standard users
 - Create, edit, view, search, and delete tour budgets
+- Optional budget targets with remaining and over-budget indicators
+- Automatic upcoming, in-progress, and completed trip statuses
+- Filter and sort tours by status, travel date, cost, or title
 - Private personal-expense ledger for every account
 - Filter personal spending by month, category, linked tour, or search text
 - Export filtered personal expenses to CSV
+- Export a tour's shared expense log to CSV
 - Track cash, card, mobile banking, bank transfer, and other payments
 - Transport, hotel, food, activities, visa, shopping, and miscellaneous costs
 - Tax/service charge percentage
@@ -17,10 +21,13 @@ An advanced Python web application for calculating and managing tour budgets.
 - Automatic grand total and per-person cost
 - Live calculation while filling the form
 - SQLite database persistence
-- Dashboard summary
+- Dashboard summary with live budget-health insights
 - Expense ownership controls for safe editing and deletion
 - Printable budget page / browser "Save as PDF"
+- Dedicated A4 report for each selected tour with complete details and expense records
 - Responsive Bootstrap interface
+- Modern editorial dashboard design with light and dark themes
+- Purpose-built travel photography and accessible responsive navigation
 - Integration tests for privacy and expense permissions
 
 ## Run on Windows

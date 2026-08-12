@@ -7,19 +7,24 @@
             <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m15 18-6-6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
             All tours
         </a>
-        <span class="detail-status"><i></i> Active budget</span>
+        <span class="detail-status status-{{ insights['status'] }}"><i></i>{{ insights['status_label'] }} · {{ insights['timing_label'] }}</span>
         <h1>{{ tour['title'] }}</h1>
         <div class="detail-meta">
             <span><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M19 10c0 5-7 11-7 11S5 15 5 10a7 7 0 1 1 14 0Z" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="10" r="2.3" stroke="currentColor" stroke-width="1.8"/></svg>{{ tour['destination'] }}</span>
             <span><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="3" stroke="currentColor" stroke-width="1.8"/><path d="M8 3v4m8-4v4M3 10h18" stroke="currentColor" stroke-width="1.8"/></svg>{{ tour['start_date'] }} → {{ tour['end_date'] }}</span>
             <span><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M16 20v-1.5a3.5 3.5 0 0 0-3.5-3.5h-5A3.5 3.5 0 0 0 4 18.5V20M10 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z" stroke="currentColor" stroke-width="1.8"/></svg>{{ tour['travelers'] }} {% if tour['travelers'] == 1 %}traveler{% else %}travelers{% endif %}</span>
+            <span>{{ insights['duration_days'] }} {% if insights['duration_days'] == 1 %}day{% else %}days{% endif %}</span>
         </div>
     </div>
     <div class="detail-hero-actions">
-        <button class="btn btn-ghost-light btn-icon" type="button" onclick="window.print()">
+        <a class="btn btn-ghost-light btn-icon" href="{{ url_for('export_tour_expenses', tour_id=tour['id']) }}">
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3v12m-4-4 4 4 4-4M5 20h14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            Export CSV
+        </a>
+        <a class="btn btn-ghost-light btn-icon" href="{{ url_for('print_tour', tour_id=tour['id']) }}">
             <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7 9V3h10v6M7 17H5a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2M7 14h10v7H7v-7Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
-            Print
-        </button>
+            Print A4
+        </a>
         <a class="btn btn-light btn-icon" href="{{ url_for('edit_tour', tour_id=tour['id']) }}">
             <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m14.5 5.5 4 4M4 20l4.2-1 10-10a2.1 2.1 0 0 0-3-3l-10 10L4 20Z" stroke="currentColor" stroke-width="1.8"/></svg>
             Edit tour
@@ -29,10 +34,17 @@
 
 <section class="detail-summary-grid" aria-label="Tour totals">
     <article class="detail-summary-card primary">
-        <span>Grand total</span><strong>৳{{ "{:,.2f}".format(costs['grand_total']) }}</strong><small>All recorded expenses</small>
+        <span>Total spent</span><strong>&#2547;{{ "{:,.2f}".format(costs['grand_total']) }}</strong><small>All recorded expenses</small>
+    </article>
+    <article class="detail-summary-card {% if insights['over_budget'] %}summary-danger{% endif %}">
+        {% if insights['budget_limit'] > 0 %}
+        <span>{% if insights['over_budget'] %}Over budget{% else %}Budget remaining{% endif %}</span><strong>&#2547;{{ "{:,.2f}".format((-insights['budget_remaining']) if insights['over_budget'] else insights['budget_remaining']) }}</strong><small>Target: &#2547;{{ "{:,.2f}".format(insights['budget_limit']) }}</small>
+        {% else %}
+        <span>Budget target</span><strong>Not set</strong><small><a href="{{ url_for('edit_tour', tour_id=tour['id']) }}">Add a target</a> for alerts</small>
+        {% endif %}
     </article>
     <article class="detail-summary-card">
-        <span>Per person</span><strong>৳{{ "{:,.2f}".format(costs['per_person']) }}</strong><small>Split across {{ tour['travelers'] }}</small>
+        <span>Per person</span><strong>&#2547;{{ "{:,.2f}".format(costs['per_person']) }}</strong><small>Split across {{ tour['travelers'] }}</small>
     </article>
     <article class="detail-summary-card">
         <span>Expense entries</span><strong>{{ expenses|length }}</strong><small>Individual records</small>
@@ -41,10 +53,19 @@
 
 <div class="detail-layout">
     <div class="detail-main-column">
+        {% if insights['budget_limit'] > 0 %}
+        <section class="content-surface budget-health {% if insights['over_budget'] %}is-over{% endif %}" aria-labelledby="budgetHealthHeading">
+            <div class="surface-heading surface-heading-split">
+                <div><span class="section-kicker">Budget health</span><h2 id="budgetHealthHeading">{% if insights['over_budget'] %}Target exceeded{% elif insights['budget_percent'] >= 80 %}Approaching the target{% else %}Spending is on track{% endif %}</h2><p>{{ "{:.0f}".format(insights['budget_percent']) }}% of the planned budget has been recorded.</p></div>
+                <strong>&#2547;{{ "{:,.2f}".format(costs['grand_total']) }} / &#2547;{{ "{:,.2f}".format(insights['budget_limit']) }}</strong>
+            </div>
+            <div class="budget-health-meter"><span style="width: {{ insights['budget_progress'] }}%"></span></div>
+        </section>
+        {% endif %}
         <section class="content-surface" aria-labelledby="breakdownHeading">
             <div class="surface-heading surface-heading-split">
                 <div><span class="section-kicker">Overview</span><h2 id="breakdownHeading">Cost breakdown</h2><p>See where the tour budget is being spent.</p></div>
-                <span class="total-chip">Total ৳{{ "{:,.2f}".format(costs['grand_total']) }}</span>
+                <span class="total-chip">Total &#2547;{{ "{:,.2f}".format(costs['grand_total']) }}</span>
             </div>
             <div class="cost-list">
                 {% if costs['category_breakdown'] %}
@@ -157,7 +178,7 @@
             </form>
         </section>
 
-        {% if can_manage_users %}
+        {% if is_super_admin %}
         <section class="danger-zone">
             <div><strong>Delete this tour</strong><span>Removes the tour and every expense permanently.</span></div>
             <form method="post" action="{{ url_for('delete_tour', tour_id=tour['id']) }}" onsubmit="return confirm('Delete this entire tour and all of its expenses? This action cannot be undone.')">

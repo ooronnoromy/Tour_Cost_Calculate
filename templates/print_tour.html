@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#f4f6f2">
+    <title>{{ tour['title'] }} · A4 Tour Report</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='print.css') }}">
+</head>
+<body>
+<div class="print-toolbar no-print">
+    <div class="toolbar-copy">
+        <strong>{{ tour['title'] }} · A4 report</strong>
+        <span>{{ expenses|length }} expense {% if expenses|length == 1 %}record{% else %}records{% endif %} · Ready to print</span>
+    </div>
+    <div class="toolbar-actions">
+        <a class="print-button" href="{{ url_for('view_tour', tour_id=tour['id']) }}">
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m15 18-6-6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            Back to tour
+        </a>
+        <button class="print-button primary" type="button" onclick="window.print()">
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7 9V3h10v6M7 17H5a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2M7 14h10v7H7v-7Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+            Print / Save PDF
+        </button>
+    </div>
+</div>
+<p class="screen-hint no-print">Choose A4, portrait orientation, default scale, and enable background graphics for the best result.</p>
+
+<main class="a4-report">
+    <header class="report-brand">
+        <div class="brand-name"><span class="brand-mark">TC</span><span>TourCost</span></div>
+        <div class="report-id">TOUR REPORT #{{ tour['id'] }}<br>Generated {{ generated_at.strftime('%d %B %Y · %I:%M %p') }}</div>
+    </header>
+
+    <section class="report-heading">
+        <div>
+            <span class="kicker">Complete tour record</span>
+            <h1>{{ tour['title'] }}</h1>
+            <p>A complete A4 summary of the itinerary, budget health, category totals, and every recorded shared expense.</p>
+        </div>
+        <span class="status {{ insights['status'] }}">{{ insights['status_label'] }}</span>
+    </section>
+
+    <section class="meta-grid" aria-label="Tour information">
+        <div class="meta-item"><span>Destination</span><strong>{{ tour['destination'] }}</strong></div>
+        <div class="meta-item"><span>Travel dates</span><strong>{{ tour['start_date'] }} – {{ tour['end_date'] }}</strong></div>
+        <div class="meta-item"><span>Duration</span><strong>{{ insights['duration_days'] }} day{% if insights['duration_days'] != 1 %}s{% endif %}</strong></div>
+        <div class="meta-item"><span>Travelers</span><strong>{{ tour['travelers'] }}</strong></div>
+    </section>
+
+    <section class="metrics-grid" aria-label="Tour totals">
+        <article class="metric primary"><span>Total spent</span><strong>&#2547;{{ "{:,.2f}".format(costs['grand_total']) }}</strong><small>{{ expenses|length }} expense {% if expenses|length == 1 %}entry{% else %}entries{% endif %}</small></article>
+        <article class="metric"><span>Per person</span><strong>&#2547;{{ "{:,.2f}".format(costs['per_person']) }}</strong><small>Split across {{ tour['travelers'] }}</small></article>
+        <article class="metric"><span>Budget target</span><strong>{% if insights['budget_limit'] > 0 %}&#2547;{{ "{:,.2f}".format(insights['budget_limit']) }}{% else %}Not set{% endif %}</strong><small>{% if insights['budget_limit'] > 0 %}{{ "{:.0f}".format(insights['budget_percent']) }}% used{% else %}No spending limit{% endif %}</small></article>
+        <article class="metric {% if insights['over_budget'] %}danger{% endif %}"><span>{% if insights['over_budget'] %}Over budget{% else %}Budget remaining{% endif %}</span><strong>{% if insights['budget_remaining'] is not none %}&#2547;{{ "{:,.2f}".format((-insights['budget_remaining']) if insights['over_budget'] else insights['budget_remaining']) }}{% else %}—{% endif %}</strong><small>{{ insights['timing_label'] }}</small></article>
+    </section>
+
+    {% if insights['budget_limit'] > 0 %}
+    <section class="budget-progress {% if insights['over_budget'] %}over{% endif %}" aria-label="Budget progress">
+        <div class="budget-progress-head"><span>Budget usage</span><strong>{{ "{:.0f}".format(insights['budget_percent']) }}%</strong></div>
+        <div class="progress-track"><span style="width:{{ insights['budget_progress'] }}%"></span></div>
+    </section>
+    {% endif %}
+
+    {% if costs['category_breakdown'] %}
+    <div class="section-heading"><h2>Cost breakdown</h2><span>{{ costs['category_breakdown']|length }} {% if costs['category_breakdown']|length == 1 %}category{% else %}categories{% endif %}</span></div>
+    <section class="category-grid" aria-label="Cost categories">
+        {% for category in costs['category_breakdown'] %}
+        <div class="category-item"><span>{{ category['label'] }}</span><strong>&#2547;{{ "{:,.2f}".format(category['amount']) }}</strong></div>
+        {% endfor %}
+    </section>
+    {% endif %}
+
+    <div class="section-heading"><h2>Expense records</h2><span>{{ expenses|length }} {% if expenses|length == 1 %}entry{% else %}entries{% endif %}</span></div>
+    <table>
+        <colgroup><col style="width:16%"><col style="width:19%"><col style="width:19%"><col><col style="width:17%"></colgroup>
+        <thead><tr><th>Date</th><th>Category</th><th>Added by</th><th>Notes</th><th class="amount">Amount</th></tr></thead>
+        <tbody>
+        {% for expense in expenses %}
+            <tr>
+                <td>{{ expense['expense_date'] }}</td>
+                <td>{{ expense['category'] }}</td>
+                <td>{% if expense['added_by_name'] %}{{ expense['added_by_name'] }}{% if expense['added_by_username'] %}<br><small>@{{ expense['added_by_username'] }}</small>{% endif %}{% else %}Not recorded{% endif %}</td>
+                <td>{{ expense['notes'] or '—' }}</td>
+                <td class="amount">&#2547;{{ "{:,.2f}".format(expense['amount']) }}</td>
+            </tr>
+        {% else %}
+            <tr><td class="empty-row" colspan="5">No individual expenses have been recorded for this tour.</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+
+    {% if tour['notes'] %}<section class="tour-notes"><strong>Tour notes:</strong> {{ tour['notes'] }}</section>{% endif %}
+
+    <footer class="report-footer"><span>TourCost · Complete tour record</span><span>{{ tour['title'] }} · Page prepared {{ generated_at.strftime('%Y-%m-%d') }}</span></footer>
+</main>
+</body>
+</html>

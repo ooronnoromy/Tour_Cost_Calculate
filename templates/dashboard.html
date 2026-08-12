@@ -3,9 +3,9 @@
 {% block content %}
 <section class="page-hero dashboard-hero">
     <div class="page-hero-copy">
-        <span class="eyebrow">Overview</span>
-        <h1>Your tour budgets,<br><span>all in one place.</span></h1>
-        <p>Plan new trips, track every expense, and understand the cost per traveler at a glance.</p>
+        <span class="eyebrow"><i></i> Your travel command center</span>
+        <h1>Go further.<br><span>Spend smarter.</span></h1>
+        <p>One beautifully simple place to shape the trip, share the costs, and keep every taka on course.</p>
         <div class="hero-actions">
             <a class="btn btn-primary btn-icon" href="{{ url_for('new_tour') }}">
                 <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
@@ -19,14 +19,15 @@
             {% endif %}
         </div>
     </div>
-    <div class="hero-visual" aria-hidden="true">
-        <div class="hero-orbit hero-orbit-one"></div>
-        <div class="hero-orbit hero-orbit-two"></div>
+    <div class="hero-visual">
         <div class="hero-budget-card">
-            <span>Trip overview</span>
-            <strong>Plan · Track · Share</strong>
-            <div class="mini-progress"><i></i></div>
-            <div class="mini-stats"><span></span><span></span><span></span></div>
+            <div class="hero-card-label"><span>Portfolio snapshot</span><i>Live</i></div>
+            <strong>&#2547;{{ "{:,.0f}".format(total_budget) }}</strong>
+            <small>Tracked across {{ tours|length }} {% if tours|length == 1 %}journey{% else %}journeys{% endif %}</small>
+            <div class="hero-card-stats">
+                <div><span>Tours</span><strong>{{ tours|length }}</strong></div>
+                <div><span>Travelers</span><strong>{{ total_travelers }}</strong></div>
+            </div>
         </div>
     </div>
 </section>
@@ -60,39 +61,72 @@
     <div class="section-toolbar">
         <div>
             <span class="section-kicker">Trip library</span>
-            <h2>{% if q %}Search results{% else %}Your tours{% endif %}</h2>
-            <p>{% if q %}Tours matching “{{ q }}”{% else %}Open a tour to review costs or add a new expense.{% endif %}</p>
+            <h2>{% if q or status_filter != 'all' %}Filtered tours{% else %}Your tours{% endif %}</h2>
+            <p>{% if q %}Tours matching “{{ q }}”{% elif status_filter != 'all' %}Showing {{ status_filter }} trips{% else %}Open a tour to review costs or add a new expense.{% endif %}</p>
         </div>
-        <form class="dashboard-search" method="get" role="search">
+    </div>
+    <form class="dashboard-filters" method="get" role="search">
+        <div class="filter-search-field">
             <label class="visually-hidden" for="tourSearch">Search tours</label>
             <span class="search-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="6.5" stroke="currentColor" stroke-width="1.8"/><path d="m16 16 4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></span>
-            <input class="form-control" id="tourSearch" name="q" value="{{ q }}" placeholder="Search tours or destinations">
-            {% if q %}<a class="search-clear" href="{{ url_for('dashboard') }}" aria-label="Clear search">×</a>{% endif %}
-            <button class="btn btn-dark" type="submit">Search</button>
-        </form>
-    </div>
+            <input class="form-control" type="search" id="tourSearch" name="q" value="{{ q }}" placeholder="Search tours or destinations">
+        </div>
+        <select class="form-select" id="statusFilter" name="status" aria-label="Trip status">
+            <option value="all" {% if status_filter == 'all' %}selected{% endif %}>All statuses</option>
+            <option value="upcoming" {% if status_filter == 'upcoming' %}selected{% endif %}>Upcoming</option>
+            <option value="active" {% if status_filter == 'active' %}selected{% endif %}>In progress</option>
+            <option value="completed" {% if status_filter == 'completed' %}selected{% endif %}>Completed</option>
+        </select>
+        <select class="form-select" id="sortTours" name="sort" aria-label="Sort tours">
+            <option value="newest" {% if sort == 'newest' %}selected{% endif %}>Newest added</option>
+            <option value="soonest" {% if sort == 'soonest' %}selected{% endif %}>Travel date</option>
+            <option value="cost_high" {% if sort == 'cost_high' %}selected{% endif %}>Cost: high to low</option>
+            <option value="cost_low" {% if sort == 'cost_low' %}selected{% endif %}>Cost: low to high</option>
+            <option value="title" {% if sort == 'title' %}selected{% endif %}>Title A–Z</option>
+        </select>
+        <button class="btn btn-dark" type="submit">Apply</button>
+        {% if q or status_filter != 'all' or sort != 'newest' %}<a class="btn btn-secondary-soft" href="{{ url_for('dashboard') }}">Reset</a>{% endif %}
+    </form>
 
-    {% if tours %}
+    {% if tour_items %}
     <div class="tour-grid">
-        {% for tour in tours %}
-            {% set costs = calculate_costs(tour) %}
+        {% for item in tour_items %}
+            {% set tour = item['tour'] %}
+            {% set costs = item['costs'] %}
+            {% set insights = item['insights'] %}
             <article class="tour-card">
                 <div class="tour-card-top">
                     <span class="tour-destination">
                         <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M19 10c0 5-7 11-7 11S5 15 5 10a7 7 0 1 1 14 0Z" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="10" r="2.3" stroke="currentColor" stroke-width="1.8"/></svg>
                         {{ tour['destination'] }}
                     </span>
-                    <span class="traveler-chip">{{ tour['travelers'] }} {% if tour['travelers'] == 1 %}traveler{% else %}travelers{% endif %}</span>
+                    <span class="status-badge status-{{ insights['status'] }}"><i></i>{{ insights['status_label'] }}</span>
                 </div>
                 <h3>{{ tour['title'] }}</h3>
                 <div class="tour-date">
                     <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="3" stroke="currentColor" stroke-width="1.8"/><path d="M8 3v4m8-4v4M3 10h18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
                     <span>{{ tour['start_date'] }} <i>→</i> {{ tour['end_date'] }}</span>
                 </div>
+                <div class="tour-card-facts">
+                    <span class="traveler-chip">{{ tour['travelers'] }} {% if tour['travelers'] == 1 %}traveler{% else %}travelers{% endif %}</span>
+                    <span>{{ insights['duration_days'] }} {% if insights['duration_days'] == 1 %}day{% else %}days{% endif %}</span>
+                    <span>{{ insights['timing_label'] }}</span>
+                </div>
                 <div class="tour-cost">
-                    <span>Total budget</span>
-                    <strong>৳{{ "{:,.2f}".format(costs['grand_total']) }}</strong>
-                    <small>৳{{ "{:,.2f}".format(costs['per_person']) }} per person</small>
+                    <span>Total spent</span>
+                    <strong>&#2547;{{ "{:,.2f}".format(costs['grand_total']) }}</strong>
+                    <small>&#2547;{{ "{:,.2f}".format(costs['per_person']) }} per person</small>
+                    {% if insights['budget_limit'] > 0 %}
+                    <div class="budget-meter" aria-label="{{ '{:.0f}'.format(insights['budget_percent']) }} percent of budget used">
+                        <span style="width: {{ insights['budget_progress'] }}%" class="{% if insights['over_budget'] %}over{% elif insights['budget_percent'] >= 80 %}warning{% endif %}"></span>
+                    </div>
+                    <div class="budget-meter-label">
+                        <span>{{ "{:.0f}".format(insights['budget_percent']) }}% of &#2547;{{ "{:,.0f}".format(insights['budget_limit']) }}</span>
+                        <strong class="{% if insights['over_budget'] %}text-danger{% endif %}">{% if insights['over_budget'] %}&#2547;{{ "{:,.0f}".format(-insights['budget_remaining']) }} over{% else %}&#2547;{{ "{:,.0f}".format(insights['budget_remaining']) }} left{% endif %}</strong>
+                    </div>
+                    {% else %}
+                    <a class="budget-setup-link" href="{{ url_for('edit_tour', tour_id=tour['id']) }}">Set a budget target</a>
+                    {% endif %}
                 </div>
                 <div class="tour-card-actions">
                     <a class="btn btn-dark btn-icon" href="{{ url_for('view_tour', tour_id=tour['id']) }}">
@@ -109,10 +143,10 @@
     {% else %}
     <div class="empty-state">
         <div class="empty-icon"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7 7V5.8A4.8 4.8 0 0 1 11.8 1h.4A4.8 4.8 0 0 1 17 5.8V7M3 12h18M8 12v9m8-9v9M7 7h10a4 4 0 0 1 4 4v6a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4v-6a4 4 0 0 1 4-4Z" stroke="currentColor" stroke-width="1.7"/></svg></div>
-        {% if q %}
+        {% if q or status_filter != 'all' %}
         <h2>No matching tours</h2>
-        <p>Try a different title or destination, or clear the search to see every tour.</p>
-        <a class="btn btn-secondary-soft" href="{{ url_for('dashboard') }}">Clear search</a>
+        <p>Try a different title or status, or reset the filters to see every tour.</p>
+        <a class="btn btn-secondary-soft" href="{{ url_for('dashboard') }}">Reset filters</a>
         {% else %}
         <h2>Plan your first tour</h2>
         <p>Create a tour, add expenses as you go, and let TourCost Pro calculate the totals.</p>
