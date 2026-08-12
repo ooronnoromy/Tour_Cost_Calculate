@@ -123,10 +123,11 @@
             <form method="post" action="{{ url_for('add_expense', tour_id=tour['id']) }}" id="expenseForm" class="stacked-form">
                 <div>
                     <label class="form-label" for="expenseCategory">Category</label>
-                    <select class="form-select" id="expenseCategory" name="category" required>
-                        <option value="" selected disabled>Select a category</option>
-                        {% for category in expense_categories %}<option value="{{ category }}">{{ category|title }}</option>{% endfor %}
-                    </select>
+                    <input type="text" class="form-control" id="expenseCategory" name="category" list="expenseCategorySuggestions" maxlength="60" placeholder="e.g. Transport, Food, Entry Fee" autocomplete="off" required aria-describedby="expenseCategoryHint">
+                    <datalist id="expenseCategorySuggestions">
+                        {% for category in expense_categories %}<option value="{{ category|title }}">{% endfor %}
+                    </datalist>
+                    <div class="field-hint" id="expenseCategoryHint">Type any category or choose a suggestion.</div>
                 </div>
                 <div>
                     <label class="form-label" for="expenseAmount">Amount (৳)</label>

@@ -190,7 +190,7 @@ def form_to_data(form):
 
 def expense_form_to_data(form):
     return {
-        "category": form.get("category", "transport").strip(),
+        "category": " ".join(form.get("category", "").strip().lower().split()),
         "amount": safe_float(form.get("amount")),
         "expense_date": form.get("expense_date", "").strip(),
         "notes": form.get("notes", "").strip(),
@@ -216,6 +216,8 @@ def validate_expense(data):
     errors = []
     if not data["category"]:
         errors.append("Expense category is required.")
+    elif len(data["category"]) > 60:
+        errors.append("Expense category must be 60 characters or fewer.")
     if data["amount"] <= 0:
         errors.append("Expense amount must be greater than zero.")
     if not data["expense_date"]:
@@ -329,7 +331,12 @@ def calculate_costs(tour):
             ).fetchall()
         expense_count = len(expense_rows)
         for row in expense_rows:
-            category_totals[row["category"]] = float(row["amount"] or 0)
+            category = " ".join((row["category"] or "").strip().lower().split())
+            amount = float(row["amount"] or 0)
+            if category in category_totals:
+                category_totals[category] += amount
+            else:
+                category_totals["other"] += amount
 
     expense_total = sum(category_totals.values())
     if expense_total <= 0:
