@@ -23,7 +23,7 @@
 <form class="ledger-filters" method="get" aria-label="Filter personal expenses">
     <div><label for="filterMonth">Month</label><input class="form-control" id="filterMonth" type="month" name="month" value="{{ filters.month }}"></div>
     <div><label for="filterCategory">Category</label><select class="form-select" id="filterCategory" name="category"><option value="">All categories</option>{% for category in categories %}<option value="{{ category }}" {% if filters.category == category %}selected{% endif %}>{{ category }}</option>{% endfor %}</select></div>
-    <div><label for="filterTour">Linked tour</label><select class="form-select" id="filterTour" name="tour_id"><option value="">All tours</option>{% for tour in tours %}<option value="{{ tour['id'] }}" {% if filters.tour_id == tour['id'] %}selected{% endif %}>{{ tour['title'] }}</option>{% endfor %}</select></div>
+    <div><label for="filterTour">Linked tour</label><select class="form-select" id="filterTour" name="tour_id"><option value="">All expenses</option><option value="unlinked" {% if filters.tour_id == 'unlinked' %}selected{% endif %}>Not linked to any tour</option>{% for tour in tours %}<option value="{{ tour['id'] }}" {% if filters.tour_id == tour['id'] %}selected{% endif %}>{{ tour['title'] }}</option>{% endfor %}</select></div>
     <div class="ledger-search"><label for="filterSearch">Search</label><input class="form-control" id="filterSearch" name="q" value="{{ filters.q }}" placeholder="Category or notes"></div>
     <button class="btn btn-dark" type="submit">Apply</button>
     {% if filters.month or filters.category or filters.tour_id or filters.q %}<a class="btn btn-secondary-soft" href="{{ url_for('personal_expenses') }}">Clear</a>{% endif %}

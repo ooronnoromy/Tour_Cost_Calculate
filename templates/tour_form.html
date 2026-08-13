@@ -77,6 +77,11 @@
                         </div>
                         <div class="field-hint">Enables budget progress and overspend alerts.</div>
                     </div>
+                    <div class="col-12">
+                        <div class="form-label">Traveller names <span class="required-mark">*</span></div>
+                        <div class="row g-3" id="travellerNameFields"></div>
+                        <div class="field-hint">A name box is added automatically for every traveler.</div>
+                    </div>
                 </div>
             </section>
 
@@ -107,7 +112,7 @@
         <span class="section-kicker">What happens next?</span>
         <h2 id="nextStepsHeading">Build your budget in two simple steps</h2>
         <ol class="workflow-list">
-            <li class="active"><span>1</span><div><strong>Save trip details</strong><small>Name, destination, dates, and travelers.</small></div></li>
+            <li class="active"><span>1</span><div><strong>Save trip details</strong><small>Traveller, destination, dates, and group size.</small></div></li>
             <li><span>2</span><div><strong>Add expenses</strong><small>Record transport, hotel, food, and other costs.</small></div></li>
         </ol>
         <div class="info-callout">
@@ -127,8 +132,36 @@
 const startDate = document.getElementById('startDate');
 const endDate = document.getElementById('endDate');
 const budgetLimit = document.getElementById('budgetLimit');
+const travelers = document.getElementById('travelers');
+const travellerNameFields = document.getElementById('travellerNameFields');
 const tripDuration = document.getElementById('tripDuration');
 const tripBudget = document.getElementById('tripBudget');
+const initialTravellerNames = {{ (get_traveller_names(tour) if tour else [])|tojson }};
+function syncTravellerNameFields(initialNames = null) {
+    const names = initialNames || Array.from(travellerNameFields.querySelectorAll('input')).map(input => input.value);
+    const count = Math.max(1, Math.min(Number(travelers.value) || 1, Number(travelers.max) || 10000));
+    travellerNameFields.replaceChildren();
+    for (let index = 0; index < count; index += 1) {
+        const column = document.createElement('div');
+        column.className = 'col-md-6';
+        const label = document.createElement('label');
+        label.className = 'form-label';
+        label.htmlFor = `travellerName${index + 1}`;
+        label.textContent = `Traveller ${index + 1}`;
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.className = 'form-control';
+        input.id = label.htmlFor;
+        input.name = 'traveller_names';
+        input.required = true;
+        input.maxLength = 120;
+        input.autocomplete = 'name';
+        input.placeholder = `Name of traveller ${index + 1}`;
+        input.value = names[index] || '';
+        column.append(label, input);
+        travellerNameFields.append(column);
+    }
+}
 function syncEndDate() {
     endDate.min = startDate.value;
     if (endDate.value && endDate.value < startDate.value) endDate.value = startDate.value;
@@ -146,6 +179,9 @@ function updateTripPreview() {
 startDate.addEventListener('change', () => { syncEndDate(); updateTripPreview(); });
 endDate.addEventListener('change', updateTripPreview);
 budgetLimit.addEventListener('input', updateTripPreview);
+travelers.addEventListener('change', () => syncTravellerNameFields());
+travelers.addEventListener('input', () => syncTravellerNameFields());
+syncTravellerNameFields(initialTravellerNames);
 syncEndDate();
 updateTripPreview();
 </script>

@@ -69,7 +69,7 @@
         <div class="filter-search-field">
             <label class="visually-hidden" for="tourSearch">Search tours</label>
             <span class="search-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="6.5" stroke="currentColor" stroke-width="1.8"/><path d="m16 16 4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></span>
-            <input class="form-control" type="search" id="tourSearch" name="q" value="{{ q }}" placeholder="Search tours or destinations">
+            <input class="form-control" type="search" id="tourSearch" name="q" value="{{ q }}" placeholder="Search tours, travellers, or destinations">
         </div>
         <select class="form-select" id="statusFilter" name="status" aria-label="Trip status">
             <option value="all" {% if status_filter == 'all' %}selected{% endif %}>All statuses</option>
@@ -108,7 +108,7 @@
                     <span>{{ tour['start_date'] }} <i>→</i> {{ tour['end_date'] }}</span>
                 </div>
                 <div class="tour-card-facts">
-                    <span class="traveler-chip">{{ tour['travelers'] }} {% if tour['travelers'] == 1 %}traveler{% else %}travelers{% endif %}</span>
+                    <span class="traveler-chip">{{ get_traveller_names(tour)|join(', ') or 'Travellers not recorded' }} · {{ tour['travelers'] }} {% if tour['travelers'] == 1 %}traveler{% else %}travelers{% endif %}</span>
                     <span>{{ insights['duration_days'] }} {% if insights['duration_days'] == 1 %}day{% else %}days{% endif %}</span>
                     <span>{{ insights['timing_label'] }}</span>
                 </div>

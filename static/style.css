@@ -660,6 +660,11 @@ textarea.form-control { padding-top: .8rem; resize: vertical; }
 .category-icon.other { color: #68748a; background: #edf0f5; }
 .category-icon.custom { color: #5360da; background: #eef0ff; }
 .entry-count { color: #5f6a7f; }
+.payment-balance-table .balance-due { color: var(--danger); }
+.payment-balance-table .balance-backable { color: #0b887b; }
+.payment-history-heading { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 1rem 1.5rem .7rem; border-top: 1px solid var(--line); }
+.payment-history-heading strong { font-size: .78rem; }
+.payment-history-heading span { color: var(--muted); font-size: .64rem; }
 .expense-category-dot { width: 7px; height: 7px; display: inline-block; margin-right: .45rem; border-radius: 50%; background: #929bad; }
 .expense-category-name { display: inline-flex; align-items: center; color: var(--ink); font-size: .73rem; font-weight: 800; line-height: 1.35; }
 .category-transport { background: #6770ef; }

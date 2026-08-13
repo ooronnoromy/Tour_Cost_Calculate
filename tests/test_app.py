@@ -39,7 +39,7 @@ class TourCostIntegrationTests(unittest.TestCase):
         response = self.post(
             "/tour/new",
             data={
-                "title": "Summer break", "destination": "Sylhet",
+                "title": "Summer break", "traveller_names": ["Ayesha Rahman", "Nadia Islam"], "destination": "Sylhet",
                 "start_date": "2026-09-01", "end_date": "2026-09-04",
                 "travelers": "2", "notes": "",
             },
@@ -55,6 +55,34 @@ class TourCostIntegrationTests(unittest.TestCase):
                 (username, username.title(), generate_password_hash("password123"), role, now, now),
             )
 
+    def test_tour_form_saves_and_displays_all_traveller_names(self):
+        form = self.client.get("/tour/new")
+        self.assertIn(b"travellerNameFields", form.data)
+        self.assertIn(b"name = 'traveller_names'", form.data)
+
+        tour_id = self.create_tour()
+        with tourcost.get_db() as conn:
+            saved_name = conn.execute(
+                "SELECT traveller_name FROM tours WHERE id = ?", (tour_id,)
+            ).fetchone()[0]
+        self.assertEqual(saved_name, "Ayesha Rahman\nNadia Islam")
+        detail = self.client.get(f"/tour/{tour_id}")
+        self.assertIn(b"Ayesha Rahman", detail.data)
+        self.assertIn(b"Nadia Islam", detail.data)
+
+        invalid = self.post(
+            "/tour/new",
+            data={
+                "title": "Incomplete group", "traveller_names": ["Only One", "Only Two"],
+                "destination": "Dhaka", "start_date": "2026-10-01",
+                "end_date": "2026-10-02", "travelers": "3", "notes": "",
+            },
+        )
+        self.assertEqual(invalid.status_code, 200)
+        self.assertIn(b"Enter one traveller name for each traveler", invalid.data)
+        with tourcost.get_db() as conn:
+            self.assertEqual(conn.execute("SELECT COUNT(*) FROM tours").fetchone()[0], 1)
+
     def test_personal_expense_is_private_editable_and_exportable(self):
         response = self.post(
             "/personal-expenses",
@@ -67,7 +95,14 @@ class TourCostIntegrationTests(unittest.TestCase):
         )
         self.assertIn(b"Personal expense added", response.data)
         with tourcost.get_db() as conn:
-            expense_id = conn.execute("SELECT id FROM personal_expenses").fetchone()[0]
+            expense = conn.execute("SELECT id, tour_id FROM personal_expenses").fetchone()
+            expense_id = expense["id"]
+            self.assertIsNone(expense["tour_id"])
+
+        unlinked = self.client.get("/personal-expenses?tour_id=unlinked")
+        self.assertIn(b"Not linked to any tour", unlinked.data)
+        self.assertIn(b"Lunch", unlinked.data)
+        self.assertIn(b"Do not link to a tour", unlinked.data)
 
         response = self.post(
             f"/personal-expenses/{expense_id}/edit",
@@ -119,11 +154,55 @@ class TourCostIntegrationTests(unittest.TestCase):
         with tourcost.get_db() as conn:
             self.assertEqual(conn.execute("SELECT amount FROM expenses").fetchone()[0], 125)
 
+    def test_traveller_payment_popup_records_money_and_rejects_unknown_name(self):
+        tour_id = self.create_tour()
+        self.post(
+            f"/tour/{tour_id}/expenses/add",
+            data={"category": "Hotel", "amount": "2000", "expense_date": "2026-09-01", "notes": ""},
+        )
+        detail = self.client.get(f"/tour/{tour_id}")
+        self.assertIn(b'data-bs-target="#recordPaymentModal"', detail.data)
+        self.assertIn(b"Record payment", detail.data)
+        self.assertIn(b"Ayesha Rahman", detail.data)
+        self.assertIn(b"Nadia Islam", detail.data)
+
+        response = self.post(
+            f"/tour/{tour_id}/payments/add",
+            data={
+                "traveller_name": "Nadia Islam", "amount": "1250.50",
+                "payment_date": "2026-08-13", "notes": "First installment",
+            },
+            follow_redirects=True,
+        )
+        self.assertIn(b"Payment recorded for Nadia Islam", response.data)
+        self.assertIn(b"1,250.50", response.data)
+        self.assertIn(b"First installment", response.data)
+        self.assertIn(b"Due amount", response.data)
+        self.assertIn(b"Backable", response.data)
+        self.assertIn(b'balance-due">&#2547;1,000.00', response.data)
+        self.assertIn(b'balance-backable">&#2547;250.50', response.data)
+        with tourcost.get_db() as conn:
+            payment = conn.execute("SELECT * FROM tour_payments").fetchone()
+            self.assertEqual(payment["traveller_name"], "Nadia Islam")
+            self.assertEqual(payment["amount"], 1250.5)
+
+        response = self.post(
+            f"/tour/{tour_id}/payments/add",
+            data={
+                "traveller_name": "Unknown Person", "amount": "500",
+                "payment_date": "2026-08-13", "notes": "",
+            },
+            follow_redirects=True,
+        )
+        self.assertIn(b"Choose a valid traveller from this tour", response.data)
+        with tourcost.get_db() as conn:
+            self.assertEqual(conn.execute("SELECT COUNT(*) FROM tour_payments").fetchone()[0], 1)
+
     def test_expired_form_recovers_safely_without_changing_data(self):
         response = self.client.post(
             "/tour/new",
             data={
-                "title": "Blocked", "destination": "Nowhere",
+                "title": "Blocked", "traveller_names": ["Blocked User"], "destination": "Nowhere",
                 "start_date": "2026-09-01", "end_date": "2026-09-02",
                 "travelers": "1", "notes": "",
             },
@@ -167,7 +246,7 @@ class TourCostIntegrationTests(unittest.TestCase):
         response = self.post(
             "/tour/new",
             data={
-                "title": "Budgeted escape", "destination": "Bandarban",
+                "title": "Budgeted escape", "traveller_names": ["Karim Hasan", "Mina Hasan", "Rafi Hasan", "Sara Hasan"], "destination": "Bandarban",
                 "start_date": start_date, "end_date": end_date,
                 "travelers": "4", "budget_limit": "1000", "notes": "",
             },
@@ -206,6 +285,7 @@ class TourCostIntegrationTests(unittest.TestCase):
         self.assertEqual(report.status_code, 200)
         self.assertIn(b"Complete tour record", report.data)
         self.assertIn(b"Summer break", report.data)
+        self.assertIn(b"Ayesha Rahman", report.data)
         self.assertIn(b"Sylhet", report.data)
         self.assertIn(b"Two rooms", report.data)
         self.assertIn(b"2,400.00", report.data)

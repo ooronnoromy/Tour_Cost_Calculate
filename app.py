@@ -85,6 +85,7 @@ def init_db():
             CREATE TABLE IF NOT EXISTS tours (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 title TEXT NOT NULL,
+                traveller_name TEXT NOT NULL,
                 destination TEXT NOT NULL,
                 start_date TEXT NOT NULL,
                 end_date TEXT NOT NULL,
@@ -98,6 +99,8 @@ def init_db():
             """
         )
         tour_columns = {row[1] for row in conn.execute("PRAGMA table_info(tours)").fetchall()}
+        if "traveller_name" not in tour_columns:
+            conn.execute("ALTER TABLE tours ADD COLUMN traveller_name TEXT NOT NULL DEFAULT ''")
         if "total_cost" not in tour_columns:
             conn.execute("ALTER TABLE tours ADD COLUMN total_cost REAL NOT NULL DEFAULT 0")
         if "transport_cost" not in tour_columns:
@@ -213,6 +216,26 @@ def init_db():
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_expenses_tour_date ON expenses(tour_id, expense_date DESC)"
         )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS tour_payments (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                tour_id INTEGER NOT NULL,
+                created_by_id INTEGER,
+                traveller_name TEXT NOT NULL,
+                amount REAL NOT NULL,
+                payment_date TEXT NOT NULL,
+                notes TEXT DEFAULT '',
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY(tour_id) REFERENCES tours(id) ON DELETE CASCADE,
+                FOREIGN KEY(created_by_id) REFERENCES users(id) ON DELETE SET NULL
+            )
+            """
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_tour_payments_tour_date ON tour_payments(tour_id, payment_date DESC)"
+        )
         now = datetime.now().isoformat(timespec="seconds")
         default_super_admin = conn.execute(
             "SELECT id FROM users WHERE username = ? LIMIT 1",
@@ -258,13 +281,30 @@ def valid_iso_date(value):
         return False
 
 
+def get_traveller_names(tour):
+    if not tour:
+        return []
+    keys = tour.keys() if hasattr(tour, "keys") else ()
+    if "traveller_names" in keys:
+        return list(tour["traveller_names"])
+    return [name.strip() for name in (tour["traveller_name"] or "").splitlines() if name.strip()]
+
+
 def form_to_data(form):
+    travelers = max(safe_int(form.get("travelers"), 1), 1)
+    submitted_names = form.getlist("traveller_names")
+    # Accept the original single-name field from older clients and tests.
+    if not submitted_names and form.get("traveller_name") is not None:
+        submitted_names = [form.get("traveller_name", "")]
+    traveller_names = [" ".join(name.strip().split()) for name in submitted_names]
     return {
         "title": form.get("title", "").strip(),
+        "traveller_names": traveller_names,
+        "traveller_name": "\n".join(traveller_names),
         "destination": form.get("destination", "").strip(),
         "start_date": form.get("start_date", "").strip(),
         "end_date": form.get("end_date", "").strip(),
-        "travelers": max(safe_int(form.get("travelers"), 1), 1),
+        "travelers": travelers,
         "budget_limit": safe_float(form.get("budget_limit")),
         "notes": form.get("notes", "").strip(),
     }
@@ -292,12 +332,27 @@ def personal_expense_form_to_data(form):
     }
 
 
+def tour_payment_form_to_data(form):
+    return {
+        "traveller_name": " ".join(form.get("traveller_name", "").strip().split()),
+        "amount": safe_float(form.get("amount")),
+        "payment_date": form.get("payment_date", "").strip(),
+        "notes": form.get("notes", "").strip(),
+    }
+
+
 def validate_tour(data):
     errors = []
     if not data["title"]:
         errors.append("Tour title is required.")
     elif len(data["title"]) > 120:
         errors.append("Tour title must be 120 characters or fewer.")
+    if len(data["traveller_names"]) != data["travelers"]:
+        errors.append("Enter one traveller name for each traveler.")
+    elif any(not name for name in data["traveller_names"]):
+        errors.append("Every traveller name is required.")
+    elif any(len(name) > 120 for name in data["traveller_names"]):
+        errors.append("Each traveller name must be 120 characters or fewer.")
     if not data["destination"]:
         errors.append("Destination is required.")
     elif len(data["destination"]) > 120:
@@ -329,6 +384,19 @@ def validate_expense(data):
         errors.append("Expense date is required.")
     if len(data["notes"]) > 500:
         errors.append("Expense notes must be 500 characters or fewer.")
+    return errors
+
+
+def validate_tour_payment(data, traveller_names):
+    errors = []
+    if not data["traveller_name"] or data["traveller_name"] not in traveller_names:
+        errors.append("Choose a valid traveller from this tour.")
+    if data["amount"] <= 0 or data["amount"] > 1_000_000_000:
+        errors.append("Payment amount must be between 0.01 and 1,000,000,000.")
+    if not valid_iso_date(data["payment_date"]):
+        errors.append("Payment date is required.")
+    if len(data["notes"]) > 500:
+        errors.append("Payment notes must be 500 characters or fewer.")
     return errors
 
 
@@ -384,6 +452,43 @@ def get_tour_expenses(tour_id):
         ).fetchall()
 
 
+def get_tour_payments(tour_id):
+    with get_db() as conn:
+        return conn.execute(
+            """
+            SELECT tour_payments.*, users.full_name AS added_by_name,
+                   users.username AS added_by_username
+            FROM tour_payments
+            LEFT JOIN users ON users.id = tour_payments.created_by_id
+            WHERE tour_payments.tour_id = ?
+            ORDER BY tour_payments.payment_date DESC, tour_payments.id DESC
+            """,
+            (tour_id,),
+        ).fetchall()
+
+
+def calculate_traveller_balances(tour, payments, per_person_cost):
+    paid_by_traveller = {}
+    for payment in payments:
+        name = payment["traveller_name"]
+        paid_by_traveller[name] = paid_by_traveller.get(name, 0.0) + float(payment["amount"])
+
+    share = round(float(per_person_cost or 0), 2)
+    balances = []
+    for name in get_traveller_names(tour):
+        paid = round(paid_by_traveller.get(name, 0.0), 2)
+        balances.append(
+            {
+                "name": name,
+                "share": share,
+                "paid": paid,
+                "due": round(max(share - paid, 0), 2),
+                "backable": round(max(paid - share, 0), 2),
+            }
+        )
+    return balances
+
+
 def get_user_by_id(user_id):
     with get_db() as conn:
         return conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
@@ -406,7 +511,8 @@ def can_manage_tour_expense(expense):
 def personal_expense_query(user_id):
     month = request.args.get("month", "").strip()
     category = request.args.get("category", "").strip()
-    tour_id = safe_int(request.args.get("tour_id")) or None
+    tour_filter = request.args.get("tour_id", "").strip()
+    tour_id = safe_int(tour_filter) or None
     q = request.args.get("q", "").strip()
     clauses = ["personal_expenses.user_id = ?"]
     params = [user_id]
@@ -418,7 +524,9 @@ def personal_expense_query(user_id):
     if category:
         clauses.append("personal_expenses.category = ?")
         params.append(category)
-    if tour_id:
+    if tour_filter == "unlinked":
+        clauses.append("personal_expenses.tour_id IS NULL")
+    elif tour_id:
         clauses.append("personal_expenses.tour_id = ?")
         params.append(tour_id)
     if q:
@@ -427,7 +535,7 @@ def personal_expense_query(user_id):
     return " AND ".join(clauses), params, {
         "month": month,
         "category": category,
-        "tour_id": tour_id,
+        "tour_id": "unlinked" if tour_filter == "unlinked" else tour_id,
         "q": q,
     }
 
@@ -649,6 +757,7 @@ def inject_helpers():
     return {
         "calculate_costs": calculate_costs,
         "get_tour_insights": get_tour_insights,
+        "get_traveller_names": get_traveller_names,
         "can_manage_tour_expense": can_manage_tour_expense,
     }
 
@@ -801,8 +910,8 @@ def dashboard():
     with get_db() as conn:
         if q:
             tours = conn.execute(
-                "SELECT * FROM tours WHERE title LIKE ? OR destination LIKE ? ORDER BY id DESC",
-                (f"%{q}%", f"%{q}%"),
+                "SELECT * FROM tours WHERE title LIKE ? OR destination LIKE ? OR traveller_name LIKE ? ORDER BY id DESC",
+                (f"%{q}%", f"%{q}%", f"%{q}%"),
             ).fetchall()
         else:
             tours = conn.execute("SELECT * FROM tours ORDER BY id DESC").fetchall()
@@ -1011,11 +1120,11 @@ def new_tour():
             cursor = conn.execute(
                 """
                 INSERT INTO tours (
-                    title, destination, start_date, end_date, travelers, budget_limit, notes, total_cost, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    title, traveller_name, destination, start_date, end_date, travelers, budget_limit, notes, total_cost, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
-                    data["title"], data["destination"], data["start_date"], data["end_date"], data["travelers"], data["budget_limit"], data["notes"], 0, now, now,
+                    data["title"], data["traveller_name"], data["destination"], data["start_date"], data["end_date"], data["travelers"], data["budget_limit"], data["notes"], 0, now, now,
                 ),
             )
             tour_id = cursor.lastrowid
@@ -1036,12 +1145,18 @@ def view_tour(tour_id):
     costs = calculate_costs(tour)
     insights = get_tour_insights(tour, costs["grand_total"])
     expenses = get_tour_expenses(tour_id)
+    payments = get_tour_payments(tour_id)
+    traveller_names = get_traveller_names(tour)
     return render_template(
         "tour_detail.html",
         tour=tour,
         costs=costs,
         insights=insights,
         expenses=expenses,
+        payments=payments,
+        payments_total=sum(float(payment["amount"]) for payment in payments),
+        traveller_names=traveller_names,
+        traveller_balances=calculate_traveller_balances(tour, payments, costs["per_person"]),
         expense_categories=EXPENSE_CATEGORIES,
         today=datetime.now().date().isoformat(),
     )
@@ -1059,12 +1174,16 @@ def print_tour(tour_id):
     costs = calculate_costs(tour)
     insights = get_tour_insights(tour, costs["grand_total"])
     expenses = get_tour_expenses(tour_id)
+    payments = get_tour_payments(tour_id)
     return render_template(
         "print_tour.html",
         tour=tour,
         costs=costs,
         insights=insights,
         expenses=expenses,
+        payments=payments,
+        payments_total=sum(float(payment["amount"]) for payment in payments),
+        traveller_names=get_traveller_names(tour),
         generated_at=datetime.now(),
     )
 
@@ -1092,17 +1211,51 @@ def edit_tour(tour_id):
             conn.execute(
                 """
                 UPDATE tours SET
-                    title=?, destination=?, start_date=?, end_date=?, travelers=?, budget_limit=?, notes=?, updated_at=?
+                    title=?, traveller_name=?, destination=?, start_date=?, end_date=?, travelers=?, budget_limit=?, notes=?, updated_at=?
                 WHERE id=?
                 """,
                 (
-                    data["title"], data["destination"], data["start_date"], data["end_date"], data["travelers"], data["budget_limit"], data["notes"], now, tour_id,
+                    data["title"], data["traveller_name"], data["destination"], data["start_date"], data["end_date"], data["travelers"], data["budget_limit"], data["notes"], now, tour_id,
                 ),
             )
         flash("Tour budget updated successfully.", "success")
         return redirect(url_for("view_tour", tour_id=tour_id))
 
     return render_template("tour_form.html", tour=existing, mode="Edit")
+
+
+@app.route("/tour/<int:tour_id>/payments/add", methods=["POST"])
+@login_required
+def add_tour_payment(tour_id):
+    with get_db() as conn:
+        tour = conn.execute("SELECT * FROM tours WHERE id = ?", (tour_id,)).fetchone()
+        if not tour:
+            flash("Tour not found.", "danger")
+            return redirect(url_for("dashboard"))
+
+        data = tour_payment_form_to_data(request.form)
+        errors = validate_tour_payment(data, get_traveller_names(tour))
+        if errors:
+            for error in errors:
+                flash(error, "danger")
+            return redirect(url_for("view_tour", tour_id=tour_id))
+
+        now = datetime.now().isoformat(timespec="seconds")
+        conn.execute(
+            """
+            INSERT INTO tour_payments (
+                tour_id, created_by_id, traveller_name, amount, payment_date,
+                notes, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                tour_id, g.current_user["id"], data["traveller_name"], data["amount"],
+                data["payment_date"], data["notes"], now, now,
+            ),
+        )
+
+    flash(f"Payment recorded for {data['traveller_name']}.", "success")
+    return redirect(url_for("view_tour", tour_id=tour_id))
 
 
 @app.route("/tour/<int:tour_id>/expenses/add", methods=["POST"])

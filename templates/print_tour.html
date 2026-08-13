@@ -45,6 +45,7 @@
     </section>
 
     <section class="meta-grid" aria-label="Tour information">
+        <div class="meta-item"><span>Traveller names</span><strong>{{ get_traveller_names(tour)|join(', ') or 'Not recorded' }}</strong></div>
         <div class="meta-item"><span>Destination</span><strong>{{ tour['destination'] }}</strong></div>
         <div class="meta-item"><span>Travel dates</span><strong>{{ tour['start_date'] }} – {{ tour['end_date'] }}</strong></div>
         <div class="meta-item"><span>Duration</span><strong>{{ insights['duration_days'] }} day{% if insights['duration_days'] != 1 %}s{% endif %}</strong></div>
