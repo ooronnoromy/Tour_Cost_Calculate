@@ -1258,6 +1258,65 @@ def add_tour_payment(tour_id):
     return redirect(url_for("view_tour", tour_id=tour_id))
 
 
+@app.route("/tour/<int:tour_id>/payments/<int:payment_id>/edit", methods=["POST"])
+@login_required
+@super_admin_required
+def edit_tour_payment(tour_id, payment_id):
+    with get_db() as conn:
+        tour = conn.execute("SELECT * FROM tours WHERE id = ?", (tour_id,)).fetchone()
+        if not tour:
+            flash("Tour not found.", "danger")
+            return redirect(url_for("dashboard"))
+
+        payment = conn.execute(
+            "SELECT * FROM tour_payments WHERE id = ? AND tour_id = ?",
+            (payment_id, tour_id),
+        ).fetchone()
+        if not payment:
+            flash("Payment record not found.", "danger")
+            return redirect(url_for("view_tour", tour_id=tour_id))
+
+        data = tour_payment_form_to_data(request.form)
+        errors = validate_tour_payment(data, get_traveller_names(tour))
+        if errors:
+            for error in errors:
+                flash(error, "danger")
+        else:
+            conn.execute(
+                """
+                UPDATE tour_payments
+                SET traveller_name = ?, amount = ?, payment_date = ?, notes = ?, updated_at = ?
+                WHERE id = ? AND tour_id = ?
+                """,
+                (
+                    data["traveller_name"], data["amount"], data["payment_date"], data["notes"],
+                    datetime.now().isoformat(timespec="seconds"), payment_id, tour_id,
+                ),
+            )
+            flash("Payment updated.", "success")
+
+    return redirect(url_for("view_tour", tour_id=tour_id))
+
+
+@app.route("/tour/<int:tour_id>/payments/<int:payment_id>/delete", methods=["POST"])
+@login_required
+@super_admin_required
+def delete_tour_payment(tour_id, payment_id):
+    with get_db() as conn:
+        payment = conn.execute(
+            "SELECT id FROM tour_payments WHERE id = ? AND tour_id = ?",
+            (payment_id, tour_id),
+        ).fetchone()
+        if not payment:
+            flash("Payment record not found.", "danger")
+            return redirect(url_for("view_tour", tour_id=tour_id))
+
+        conn.execute("DELETE FROM tour_payments WHERE id = ?", (payment_id,))
+
+    flash("Payment deleted.", "success")
+    return redirect(url_for("view_tour", tour_id=tour_id))
+
+
 @app.route("/tour/<int:tour_id>/expenses/add", methods=["POST"])
 @login_required
 def add_expense(tour_id):

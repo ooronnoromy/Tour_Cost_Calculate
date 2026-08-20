@@ -92,8 +92,40 @@
             <div class="payment-history-heading"><strong>Payment history</strong><span>{{ payments|length }} {% if payments|length == 1 %}record{% else %}records{% endif %}</span></div>
             <div class="table-responsive">
                 <table class="table app-table mobile-stack-table">
-                    <thead><tr><th scope="col">Date</th><th scope="col">Traveller</th><th scope="col">Recorded by</th><th scope="col">Notes</th><th scope="col">Amount</th></tr></thead>
-                    <tbody>{% for payment in payments %}<tr><td data-label="Date">{{ payment['payment_date'] }}</td><td data-label="Traveller"><strong>{{ payment['traveller_name'] }}</strong></td><td data-label="Recorded by">{{ payment['added_by_name'] or 'Not recorded' }}</td><td data-label="Notes" class="expense-notes">{{ payment['notes'] or 'No notes' }}</td><td data-label="Amount"><strong>&#2547;{{ "{:,.2f}".format(payment['amount']) }}</strong></td></tr>{% endfor %}</tbody>
+                    <thead>
+                        <tr>
+                            <th scope="col">Date</th>
+                            <th scope="col">Traveller</th>
+                            <th scope="col">Recorded by</th>
+                            <th scope="col">Notes</th>
+                            <th scope="col">Amount</th>
+                            {% if is_super_admin %}<th scope="col"><span class="visually-hidden">Actions</span></th>{% endif %}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for payment in payments %}
+                        <tr>
+                            <td data-label="Date">{{ payment['payment_date'] }}</td>
+                            <td data-label="Traveller"><strong>{{ payment['traveller_name'] }}</strong></td>
+                            <td data-label="Recorded by">{{ payment['added_by_name'] or 'Not recorded' }}</td>
+                            <td data-label="Notes" class="expense-notes">{{ payment['notes'] or 'No notes' }}</td>
+                            <td data-label="Amount"><strong>&#2547;{{ "{:,.2f}".format(payment['amount']) }}</strong></td>
+                            {% if is_super_admin %}
+                            <td data-label="Action" class="text-end no-print">
+                                <span class="row-actions">
+                                    <button class="icon-button small edit-tour-payment" type="button" data-bs-toggle="modal" data-bs-target="#editTourPaymentModal" data-action="{{ url_for('edit_tour_payment', tour_id=tour['id'], payment_id=payment['id']) }}" data-traveller="{{ payment['traveller_name']|e }}" data-amount="{{ payment['amount'] }}" data-date="{{ payment['payment_date'] }}" data-notes="{{ payment['notes']|e }}" aria-label="Edit payment for {{ payment['traveller_name'] }}">
+                                        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m14.5 5.5 4 4M4 20l4.2-1 10-10a2.1 2.1 0 0 0-3-3l-10 10L4 20Z" stroke="currentColor" stroke-width="1.8"/></svg>
+                                    </button>
+                                    <form method="post" action="{{ url_for('delete_tour_payment', tour_id=tour['id'], payment_id=payment['id']) }}" onsubmit="return confirm('Delete this payment record? This action cannot be undone.')">
+                                        {% if csrf_token is defined %}<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">{% endif %}
+                                        <button class="icon-button small danger" type="submit" aria-label="Delete payment for {{ payment['traveller_name'] }}"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 7h16m-10 4v5m4-5v5M9 7l1-3h4l1 3m3 0-1 13H7L6 7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+                                    </form>
+                                </span>
+                            </td>
+                            {% endif %}
+                        </tr>
+                        {% endfor %}
+                    </tbody>
                 </table>
             </div>
             {% endif %}
@@ -248,6 +280,30 @@
     </div></div>
 </div>
 
+{% if is_super_admin %}
+<div class="modal fade" id="editTourPaymentModal" tabindex="-1" aria-labelledby="editTourPaymentHeading" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered"><div class="modal-content account-modal">
+        <div class="modal-header"><div><span class="section-kicker">Correct a payment</span><h2 class="modal-title" id="editTourPaymentHeading">Edit payment history</h2><p>Only super admins can change payment records.</p></div><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+        <form method="post" id="editTourPaymentForm">
+            {% if csrf_token is defined %}<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">{% endif %}
+            <div class="modal-body stacked-form">
+                <div>
+                    <label class="form-label" for="editPaymentTraveller">Traveller</label>
+                    <select class="form-select" id="editPaymentTraveller" name="traveller_name" required>
+                        <option value="" selected disabled>Choose a traveller</option>
+                        {% for traveller_name in traveller_names %}<option value="{{ traveller_name }}">{{ traveller_name }}</option>{% endfor %}
+                    </select>
+                </div>
+                <div><label class="form-label" for="editPaymentAmount">Amount received (&#2547;)</label><div class="money-input"><span>&#2547;</span><input class="form-control" id="editPaymentAmount" name="amount" type="number" min="0.01" max="1000000000" step="0.01" required></div></div>
+                <div><label class="form-label" for="editPaymentDate">Payment date</label><input class="form-control" id="editPaymentDate" name="payment_date" type="date" required></div>
+                <div><label class="form-label" for="editPaymentNotes">Notes <span class="optional-label">Optional</span></label><textarea class="form-control" id="editPaymentNotes" name="notes" rows="3" maxlength="500"></textarea></div>
+            </div>
+            <div class="modal-footer"><button type="button" class="btn btn-secondary-soft" data-bs-dismiss="modal">Cancel</button><button type="submit" class="btn btn-primary">Save changes</button></div>
+        </form>
+    </div></div>
+</div>
+{% endif %}
+
 <div class="modal fade" id="editTourExpenseModal" tabindex="-1" aria-labelledby="editTourExpenseHeading" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered"><div class="modal-content account-modal">
         <div class="modal-header"><div><span class="section-kicker">Correct a record</span><h2 class="modal-title" id="editTourExpenseHeading">Edit tour expense</h2><p>The tour total will be recalculated automatically.</p></div><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
@@ -290,5 +346,18 @@ document.querySelectorAll('.edit-tour-expense').forEach((button) => {
         form.querySelector('[name="notes"]').value = button.dataset.notes;
     });
 });
+
+const editTourPaymentForm = document.getElementById('editTourPaymentForm');
+if (editTourPaymentForm) {
+    document.querySelectorAll('.edit-tour-payment').forEach((button) => {
+        button.addEventListener('click', () => {
+            editTourPaymentForm.action = button.dataset.action;
+            editTourPaymentForm.querySelector('[name="traveller_name"]').value = button.dataset.traveller;
+            editTourPaymentForm.querySelector('[name="amount"]').value = button.dataset.amount;
+            editTourPaymentForm.querySelector('[name="payment_date"]').value = button.dataset.date;
+            editTourPaymentForm.querySelector('[name="notes"]').value = button.dataset.notes;
+        });
+    });
+}
 </script>
 {% endblock %}

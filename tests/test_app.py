@@ -198,6 +198,76 @@ class TourCostIntegrationTests(unittest.TestCase):
         with tourcost.get_db() as conn:
             self.assertEqual(conn.execute("SELECT COUNT(*) FROM tour_payments").fetchone()[0], 1)
 
+    def test_only_super_admin_can_edit_or_delete_payment_history(self):
+        tour_id = self.create_tour()
+        self.post(
+            f"/tour/{tour_id}/payments/add",
+            data={
+                "traveller_name": "Ayesha Rahman", "amount": "1000",
+                "payment_date": "2026-08-13", "notes": "Initial payment",
+            },
+            follow_redirects=True,
+        )
+        with tourcost.get_db() as conn:
+            payment_id = conn.execute("SELECT id FROM tour_payments").fetchone()[0]
+
+        response = self.post(
+            f"/tour/{tour_id}/payments/{payment_id}/edit",
+            data={
+                "traveller_name": "Ayesha Rahman", "amount": "1500",
+                "payment_date": "2026-08-14", "notes": "Updated amount",
+            },
+            follow_redirects=True,
+        )
+        self.assertIn(b"Payment updated", response.data)
+        with tourcost.get_db() as conn:
+            payment = conn.execute("SELECT amount, notes FROM tour_payments WHERE id = ?", (payment_id,)).fetchone()
+            self.assertEqual(payment["amount"], 1500)
+            self.assertEqual(payment["notes"], "Updated amount")
+
+        self.add_user("manager", role="admin")
+        self.post("/logout")
+        self.login("manager", "password123")
+        detail = self.client.get(f"/tour/{tour_id}")
+        self.assertNotIn(
+            f"/tour/{tour_id}/payments/{payment_id}/edit".encode(),
+            detail.data,
+        )
+        self.assertNotIn(
+            f"/tour/{tour_id}/payments/{payment_id}/delete".encode(),
+            detail.data,
+        )
+
+        response = self.post(
+            f"/tour/{tour_id}/payments/{payment_id}/edit",
+            data={
+                "traveller_name": "Ayesha Rahman", "amount": "9999",
+                "payment_date": "2026-08-15", "notes": "Tamper",
+            },
+            follow_redirects=True,
+        )
+        self.assertIn(b"Super admin access is required", response.data)
+        with tourcost.get_db() as conn:
+            self.assertEqual(conn.execute("SELECT amount FROM tour_payments WHERE id = ?", (payment_id,)).fetchone()[0], 1500)
+
+        response = self.post(
+            f"/tour/{tour_id}/payments/{payment_id}/delete",
+            follow_redirects=True,
+        )
+        self.assertIn(b"Super admin access is required", response.data)
+        with tourcost.get_db() as conn:
+            self.assertEqual(conn.execute("SELECT COUNT(*) FROM tour_payments WHERE id = ?", (payment_id,)).fetchone()[0], 1)
+
+        self.post("/logout")
+        self.login("superadmin", "SuperAdmin@123")
+        response = self.post(
+            f"/tour/{tour_id}/payments/{payment_id}/delete",
+            follow_redirects=True,
+        )
+        self.assertIn(b"Payment deleted", response.data)
+        with tourcost.get_db() as conn:
+            self.assertEqual(conn.execute("SELECT COUNT(*) FROM tour_payments WHERE id = ?", (payment_id,)).fetchone()[0], 0)
+
     def test_expired_form_recovers_safely_without_changing_data(self):
         response = self.client.post(
             "/tour/new",
